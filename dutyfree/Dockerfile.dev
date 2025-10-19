@@ -1,0 +1,23 @@
+# Dockerfile.dev
+
+FROM maven:3.9.5-eclipse-temurin-17-alpine
+
+WORKDIR /app
+
+# Install dependencies for hot reload
+RUN apk add --no-cache curl
+
+# Copy pom.xml
+COPY pom.xml .
+
+# Download dependencies
+RUN mvn dependency:go-offline -B
+
+# Copy source code
+COPY src ./src
+
+# Expose ports
+EXPOSE 8080 35729
+
+# Run with Spring Boot DevTools
+CMD ["mvn", "spring-boot:run", "-Dspring-boot.run.jvmArguments='-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005'"]

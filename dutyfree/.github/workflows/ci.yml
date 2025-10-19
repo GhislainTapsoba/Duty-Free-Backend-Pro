@@ -1,0 +1,316 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  JAVA_VERSION: '17'
+  MAVEN_OPTS: -Xmx1024m
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: dutyfree_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: 'maven'
+    
+    - name: Cache Maven packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+    
+    - name: Build with Maven
+      run: mvn clean compile -B -V
+    
+    - name: Run tests
+      env:
+        SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/dutyfree_test
+        SPRING_DATASOURCE_USERNAME: postgres
+        SPRING_DATASOURCE_PASSWORD: postgres
+        SPRING_REDIS_HOST: localhost
+        SPRING_REDIS_PORT: 6379
+      run: mvn test -B
+    
+    - name: Run integration tests
+      env:
+        SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/dutyfree_test
+        SPRING_DATASOURCE_USERNAME: postgres
+        SPRING_DATASOURCE_PASSWORD: postgres
+        SPRING_REDIS_HOST: localhost
+        SPRING_REDIS_PORT: 6379
+      run: mvn verify -B
+    
+    - name: Generate test coverage report
+      run: mvn jacoco:report
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./target/site/jacoco/jacoco.xml
+        fail_ci_if_error: false
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: target/surefire-reports/
+    
+    - name: Package application
+      run: mvn package -DskipTests -B
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: duty-free-backend
+        path: target/*.jar
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: 'maven'
+    
+    - name: Cache SonarCloud packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.sonar/cache
+        key: ${{ runner.os }}-sonar
+        restore-keys: ${{ runner.os }}-sonar
+    
+    - name: Build and analyze with SonarCloud
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      run: |
+        mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+          -Dsonar.projectKey=djbc_duty-free-backend \
+          -Dsonar.organization=djbc \
+          -Dsonar.host.url=https://sonarcloud.io
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: OWASP Dependency Check
+      uses: dependency-check/Dependency-Check_Action@main
+      with:
+        project: 'duty-free-backend'
+        path: '.'
+        format: 'HTML'
+    
+    - name: Upload dependency check results
+      uses: actions/upload-artifact@v3
+      with:
+        name: dependency-check-report
+        path: ${{ github.workspace }}/reports
+
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [build-and-test, code-quality, security-scan]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: djbc/duty-free-backend
+        tags: |
+          type=ref,event=branch
+          type=sha,prefix={{branch}}-
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=registry,ref=djbc/duty-free-backend:buildcache
+        cache-to: type=registry,ref=djbc/duty-free-backend:buildcache,mode=max
+    
+    - name: Scan Docker image with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: djbc/duty-free-backend:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-docker-results.sarif'
+    
+    - name: Upload Docker scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-docker-results.sarif'
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-docker
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.dutyfree.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Configure SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_STAGING }}
+    
+    - name: Deploy to staging server
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER_STAGING }}@${{ secrets.SSH_HOST_STAGING }} << 'EOF'
+          cd /opt/duty-free-backend
+          git pull origin develop
+          docker-compose pull
+          docker-compose up -d
+          docker-compose exec -T app ./health-check.sh
+        EOF
+    
+    - name: Run smoke tests
+      run: |
+        sleep 30
+        curl -f https://staging.dutyfree.com/actuator/health || exit 1
+    
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: 'Staging deployment completed'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-docker
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://dutyfree.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Configure SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
+    
+    - name: Create backup
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} << 'EOF'
+          cd /opt/duty-free-backend
+          ./backup.sh
+        EOF
+    
+    - name: Deploy to production
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} << 'EOF'
+          cd /opt/duty-free-backend
+          git pull origin main
+          ./deploy.sh
+        EOF
+    
+    - name: Run smoke tests
+      run: |
+        sleep 30
+        curl -f https://dutyfree.com/actuator/health || exit 1
+    
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: 'Production deployment completed'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()

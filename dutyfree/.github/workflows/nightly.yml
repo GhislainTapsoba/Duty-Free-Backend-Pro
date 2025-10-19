@@ -1,0 +1,42 @@
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Run at 2 AM daily
+  workflow_dispatch:
+
+jobs:
+  nightly-tests:
+    name: Nightly Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'maven'
+    
+    - name: Run full test suite
+      run: mvn clean verify -P integration-tests
+    
+    - name: Generate test report
+      run: mvn surefire-report:report
+    
+    - name: Upload test report
+      uses: actions/upload-artifact@v3
+      with:
+        name: nightly-test-report
+        path: target/site/
+    
+    - name: Notify on failure
+      if: failure()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: 'Nightly build failed'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}

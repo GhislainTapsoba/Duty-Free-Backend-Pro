@@ -1,0 +1,808 @@
+4. Configuration des Secrets
+GitHub Secrets à configurer
+bash# Docker Hub
+DOCKER_USERNAME
+DOCKER_PASSWORD
+
+# SonarCloud
+SONAR_TOKEN
+
+# SSH Keys
+SSH_PRIVATE_KEY_STAGING
+SSH_USER_STAGING
+SSH_HOST_STAGING
+SSH_PRIVATE_KEY_PROD
+SSH_USER_PROD
+SSH_HOST_PROD
+
+# Slack
+SLACK_WEBHOOK
+GitLab CI/CD Variables
+bash# Docker Registry
+CI_REGISTRY_USER
+CI_REGISTRY_PASSWORD
+
+# SonarQube
+SONAR_HOST_URL
+SONAR_TOKEN
+
+# SSH
+SSH_PRIVATE_KEY_STAGING
+STAGING_USER
+STAGING_HOST
+SSH_PRIVATE_KEY_PROD
+PROD_USER
+PROD_HOST
+
+🚀 EXÉCUTION DU PROJET
+Parfait ! Allons-y étape par étape pour exécuter le projet.
+📝 Checklist Avant Exécution
+bash# 1. Vérifier que vous êtes dans le bon répertoire
+pwd
+# Devrait afficher: /votre/chemin/duty-free-backend
+
+# 2. Vérifier la structure des fichiers
+ls -la
+🔧 ÉTAPE 1 : Configuration Initiale
+bash# Rendre les scripts exécutables
+chmod +x *.sh
+
+# Exécuter le script de setup
+./setup.sh
+Cela va créer :
+
+Les répertoires nécessaires (logs, backups, uploads)
+Le fichier .env depuis .env.example
+Générer un secret JWT
+
+⚙️ ÉTAPE 2 : Configuration de l'Environnement
+Éditez le fichier .env qui vient d'être créé :
+bashnano .env
+# ou
+vim .env
+# ou utilisez votre éditeur préféré
+Vérifiez/modifiez ces variables :
+env# Database
+DB_NAME=dutyfree_db
+DB_USER=postgres
+DB_PASSWORD=postgres
+
+# Redis
+REDIS_PASSWORD=redis_password
+
+# JWT (déjà généré automatiquement)
+JWT_SECRET=<généré_automatiquement>
+
+# Application
+SPRING_PROFILES_ACTIVE=dev
+TZ=Africa/Ouagadougou
+🐳 ÉTAPE 3 : Démarrage avec Docker (Recommandé)
+Option A : Mode Développement
+bash# Démarrer tous les services
+make dev
+
+# Ou sans Makefile
+docker-compose up -d
+Option B : Mode Production
+bash# Build et démarrer
+make prod-build
+
+# Ou sans Makefile
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+📊 ÉTAPE 4 : Vérification du Démarrage
+bash# Vérifier que tous les containers sont démarrés
+docker-compose ps
+
+# Devrait afficher quelque chose comme :
+# NAME                   STATUS          PORTS
+# dutyfree-postgres      Up             0.0.0.0:5432->5432/tcp
+# dutyfree-redis         Up             0.0.0.0:6379->6379/tcp
+# dutyfree-app           Up (healthy)   0.0.0.0:8080->8080/tcp
+🔍 ÉTAPE 5 : Vérifier les Logs
+bash# Voir tous les logs
+make logs
+
+# Voir seulement les logs de l'application
+make logs-app
+
+# Ou sans Makefile
+docker-compose logs -f app
+```
+
+**Attendez de voir ce message dans les logs :**
+```
+Started DutyFreeApplication in X.XXX seconds
+✅ ÉTAPE 6 : Health Check
+bash# Vérifier la santé de l'application
+./health-check.sh
+
+# Ou manuellement
+curl http://localhost:8080/actuator/health
+Réponse attendue :
+json{
+  "status": "UP"
+}
+```
+
+### 🌐 ÉTAPE 7 : Accéder à l'Application
+
+Ouvrez votre navigateur et accédez à :
+
+1. **Swagger UI (Documentation API Interactive)**
+```
+   http://localhost:8080/swagger-ui.html
+```
+
+2. **API Documentation JSON**
+```
+   http://localhost:8080/api-docs
+```
+
+3. **Health Check**
+```
+   http://localhost:8080/actuator/health
+🧪 ÉTAPE 8 : Tester l'API
+Test 1 : Login
+bashcurl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "password": "admin123"
+  }'
+Réponse attendue :
+json{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "type": "Bearer",
+    "userId": 1,
+    "username": "admin",
+    "fullName": "System Administrator",
+    "role": "ADMIN"
+  },
+  "timestamp": "2024-12-15T10:30:00"
+}
+💡 Copiez le token pour les requêtes suivantes !
+Test 2 : Récupérer les Produits
+bash# Remplacez YOUR_TOKEN par le token reçu
+curl -X GET http://localhost:8080/api/products \
+  -H "Authorization: Bearer YOUR_TOKEN"
+Test 3 : Créer une Vente
+bashcurl -X POST http://localhost:8080/api/sales \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cashRegisterId": 1,
+    "items": [
+      {
+        "productId": 1,
+        "quantity": 2
+      }
+    ],
+    "payments": [
+      {
+        "paymentMethod": "CASH",
+        "currency": "XOF",
+        "amount": 30000
+      }
+    ]
+  }'
+📊 ÉTAPE 9 : Accéder à PgAdmin (Optionnel)
+Si vous voulez gérer la base de données visuellement :
+bash# Démarrer PgAdmin
+docker-compose --profile dev up -d pgadmin
+
+# Accéder à PgAdmin
+# URL: http://localhost:5050
+# Email: admin@dutyfree.com
+# Password: admin
+Configuration de la connexion PostgreSQL dans PgAdmin :
+
+Host: postgres
+Port: 5432
+Database: dutyfree_db
+Username: postgres
+Password: postgres
+
+🛠️ COMMANDES UTILES
+bash# Arrêter l'application
+make stop
+# ou
+docker-compose down
+
+# Redémarrer l'application
+make restart
+# ou
+docker-compose restart
+
+# Voir l'état des services
+make status
+# ou
+docker-compose ps
+
+# Voir les statistiques de ressources
+make stats
+# ou
+docker stats
+
+# Accéder au shell de l'application
+make shell-app
+# ou
+docker-compose exec app sh
+
+# Accéder à la base de données
+make shell-db
+# ou
+docker-compose exec postgres psql -U postgres -d dutyfree_db
+
+# Créer un backup
+./backup.sh
+# ou
+make backup-db
+
+# Nettoyer tout (⚠️ ATTENTION : supprime les données)
+make clean
+# ou
+docker-compose down -v
+🔧 ÉTAPE 10 : Alternative - Démarrage Sans Docker
+Si vous préférez exécuter sans Docker (pour le développement) :
+1. Installer PostgreSQL localement
+bash# Ubuntu/Debian
+sudo apt-get install postgresql-15
+
+# macOS
+brew install postgresql@15
+
+# Créer la base de données
+createdb dutyfree_db
+2. Installer Redis localement
+bash# Ubuntu/Debian
+sudo apt-get install redis-server
+
+# macOS
+brew install redis
+
+# Démarrer Redis
+redis-server
+3. Configurer application-dev.yml
+yamlspring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dutyfree_db
+    username: postgres
+    password: postgres
+  
+  redis:
+    host: localhost
+    port: 6379
+4. Démarrer l'application
+bash# Avec Maven
+mvn spring-boot:run
+
+# Ou après compilation
+mvn clean package -DskipTests
+java -jar target/duty-free-backend-1.0.0.jar
+🐛 DÉPANNAGE
+Problème 1 : Port 8080 déjà utilisé
+bash# Trouver le processus
+lsof -i :8080
+
+# Tuer le processus
+kill -9 <PID>
+
+# Ou changer le port dans docker-compose.yml
+ports:
+  - "8081:8080"  # Utiliser 8081 à la place
+Problème 2 : Les containers ne démarrent pas
+bash# Voir les logs d'erreur
+docker-compose logs
+
+# Recréer les containers
+docker-compose down -v
+docker-compose up -d --build
+Problème 3 : Erreur de connexion à la base de données
+bash# Vérifier que PostgreSQL est démarré
+docker-compose ps postgres
+
+# Voir les logs PostgreSQL
+docker-compose logs postgres
+
+# Redémarrer PostgreSQL
+docker-compose restart postgres
+Problème 4 : Erreur lors des migrations Flyway
+bash# Voir le statut des migrations
+mvn flyway:info
+
+# Réparer Flyway
+mvn flyway:repair
+
+# Ou se connecter à la DB et vérifier
+docker-compose exec postgres psql -U postgres -d dutyfree_db
+\dt  # Liste les tables
+📸 ÉTAPE 11 : Vérifier que Tout Fonctionne
+Exécutez ces commandes pour confirmer :
+bash# 1. Health check
+curl http://localhost:8080/actuator/health
+
+# 2. Swagger UI accessible
+curl -I http://localhost:8080/swagger-ui.html
+
+# 3. Login fonctionne
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+
+# 4. Base de données accessible
+docker-compose exec postgres psql -U postgres -d dutyfree_db -c "SELECT COUNT(*) FROM users;"
+
+# 5. Redis fonctionne
+docker-compose exec redis redis-cli ping
+Si toutes ces commandes fonctionnent, félicitations ! 🎉
+📚 PROCHAINES ÉTAPES
+Maintenant que l'application fonctionne :
+
+Testez les endpoints via Swagger UI
+Créez des données de test (produits, ventes, etc.)
+Testez les rapports
+Configurez votre frontend pour se connecter à l'API
+
+🆘 BESOIN D'AIDE ?
+Si vous rencontrez des problèmes :
+bash# Récupérer tous les logs
+docker-compose logs > logs/all-logs.txt
+
+# Vérifier la configuration
+cat .env
+
+# Vérifier l'état détaillé
+docker-compose ps -a
+docker inspect dutyfree-app
+
+Dites-moi où vous en êtes et si vous rencontrez des problèmes ! 🚀
+Quelle étape souhaitez-vous exécuter maintenant ?RéessayerDTJe suis sur windows🪟 EXÉCUTION SUR WINDOWS
+Parfait ! Adaptons l'installation pour Windows. Voici les étapes spécifiques.
+📋 Prérequis Windows
+1. Installer les outils nécessaires
+Option A : Docker Desktop (Recommandé - Plus Simple)
+
+Télécharger Docker Desktop
+
+Aller sur : https://www.docker.com/products/docker-desktop/
+Télécharger Docker Desktop pour Windows
+Installer et redémarrer l'ordinateur
+
+
+Vérifier l'installation
+
+powershell   docker --version
+   docker-compose --version
+Option B : Installation manuelle (Si pas Docker)
+
+Installer Java 17
+
+Télécharger : https://adoptium.net/
+Choisir : Temurin 17 (LTS)
+Installer et vérifier :
+
+
+
+powershell   java -version
+
+Installer Maven
+
+Télécharger : https://maven.apache.org/download.cgi
+Extraire dans C:\Program Files\Maven
+Ajouter au PATH
+Vérifier :
+
+
+
+powershell   mvn -version
+
+Installer PostgreSQL
+
+Télécharger : https://www.postgresql.org/download/windows/
+Installer (noter le mot de passe)
+
+
+Installer Redis
+
+Télécharger : https://github.com/microsoftarchive/redis/releases
+Ou utiliser WSL2
+
+
+
+🚀 MÉTHODE 1 : AVEC DOCKER DESKTOP (Recommandé)
+Étape 1 : Préparer le projet
+Ouvrez PowerShell en tant qu'administrateur :
+powershell# Aller dans le dossier du projet
+cd C:\path\to\duty-free-backend
+
+# Vérifier les fichiers
+dir
+Étape 2 : Créer les fichiers de configuration Windows
+Créez un fichier setup.bat :
+batch@echo off
+REM setup.bat - Configuration initiale pour Windows
+
+echo ========================================
+echo   DUTY FREE - SETUP WINDOWS
+echo ========================================
+echo.
+
+REM Créer les répertoires
+echo Creation des repertoires...
+if not exist "logs" mkdir logs
+if not exist "backups\database" mkdir backups\database
+if not exist "backups\files" mkdir backups\files
+if not exist "uploads" mkdir uploads
+if not exist "ssl" mkdir ssl
+
+REM Copier .env.example vers .env
+if not exist ".env" (
+    echo Creation du fichier .env...
+    copy .env.example .env
+    echo ATTENTION: Editez le fichier .env avec vos parametres
+) else (
+    echo Fichier .env existe deja
+)
+
+echo.
+echo Setup termine avec succes!
+echo.
+echo Prochaines etapes:
+echo 1. Editez le fichier .env
+echo 2. Executez: docker-compose up -d
+echo.
+pause
+Étape 3 : Créer .env pour Windows
+Créez le fichier .env :
+env# Database
+DB_NAME=dutyfree_db
+DB_USER=postgres
+DB_PASSWORD=postgres
+
+# Redis
+REDIS_PASSWORD=redis_password
+
+# JWT Secret (générer un nouveau)
+JWT_SECRET=MySecretKeyForDutyFreeApplicationThatIsLongEnough123456789ChangeThisInProduction
+
+# Application
+SPRING_PROFILES_ACTIVE=dev
+TZ=Africa/Ouagadougou
+
+# Nginx
+NGINX_HOST=localhost
+Étape 4 : Exécuter le setup
+powershell# Exécuter le setup
+.\setup.bat
+Étape 5 : Démarrer avec Docker Desktop
+powershell# Démarrer tous les services
+docker-compose up -d
+
+# Voir les logs
+docker-compose logs -f
+Étape 6 : Vérifier que tout fonctionne
+powershell# Vérifier les containers
+docker-compose ps
+
+# Health check
+curl http://localhost:8080/actuator/health
+
+# Ou avec PowerShell
+Invoke-WebRequest -Uri http://localhost:8080/actuator/health
+🔧 MÉTHODE 2 : SANS DOCKER (Développement Local)
+Étape 1 : Installer PostgreSQL
+
+Télécharger et installer PostgreSQL 15
+Pendant l'installation, noter le mot de passe
+Ouvrir SQL Shell (psql)
+
+sql-- Créer la base de données
+CREATE DATABASE dutyfree_db;
+
+-- Vérifier
+\l
+Étape 2 : Installer Redis
+Option A : Avec WSL2 (Recommandé)
+powershell# Installer WSL2
+wsl --install
+
+# Redémarrer l'ordinateur
+
+# Dans WSL
+sudo apt update
+sudo apt install redis-server
+redis-server
+Option B : Version Windows
+
+Télécharger : https://github.com/microsoftarchive/redis/releases
+Extraire et exécuter redis-server.exe
+
+Étape 3 : Configurer l'application
+Éditer src/main/resources/application-dev.yml :
+yamlspring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dutyfree_db
+    username: postgres
+    password: votre_mot_de_passe_postgres
+  
+  redis:
+    host: localhost
+    port: 6379
+    password: # Laisser vide si pas de password
+Étape 4 : Compiler et exécuter
+powershell# Compiler
+mvn clean package -DskipTests
+
+# Exécuter
+java -jar target/duty-free-backend-1.0.0.jar
+
+# Ou directement
+mvn spring-boot:run
+🛠️ SCRIPTS WINDOWS
+start.bat
+batch@echo off
+echo Demarrage de Duty Free Backend...
+docker-compose up -d
+echo.
+echo Application demarree!
+echo Swagger UI: http://localhost:8080/swagger-ui.html
+echo.
+pause
+stop.bat
+batch@echo off
+echo Arret de Duty Free Backend...
+docker-compose down
+echo.
+echo Application arretee!
+pause
+logs.bat
+batch@echo off
+docker-compose logs -f app
+backup.bat
+batch@echo off
+echo Creation d'une sauvegarde...
+set BACKUP_FILE=backups\database\dutyfree_db_%date:~-4,4%%date:~-10,2%%date:~-7,2%_%time:~0,2%%time:~3,2%%time:~6,2%.sql
+docker-compose exec -T postgres pg_dump -U postgres dutyfree_db > %BACKUP_FILE%
+echo Sauvegarde creee: %BACKUP_FILE%
+pause
+health-check.bat
+batch@echo off
+echo Verification de la sante de l'application...
+echo.
+
+echo Application:
+curl -s http://localhost:8080/actuator/health
+echo.
+
+echo.
+echo Database:
+docker-compose exec postgres pg_isready -U postgres
+echo.
+
+echo.
+echo Redis:
+docker-compose exec redis redis-cli ping
+echo.
+
+pause
+🎯 COMMANDES POWERSHELL UTILES
+powershell# Démarrer l'application
+docker-compose up -d
+
+# Voir les logs en temps réel
+docker-compose logs -f app
+
+# Arrêter l'application
+docker-compose down
+
+# Redémarrer
+docker-compose restart
+
+# Voir l'état
+docker-compose ps
+
+# Accéder au shell de l'application
+docker-compose exec app sh
+
+# Accéder à PostgreSQL
+docker-compose exec postgres psql -U postgres -d dutyfree_db
+
+# Backup de la base de données
+docker-compose exec postgres pg_dump -U postgres dutyfree_db > backup.sql
+
+# Nettoyer tout
+docker-compose down -v
+docker system prune -f
+🧪 TESTER L'API SUR WINDOWS
+Avec PowerShell
+powershell# Login
+$body = @{
+    username = "admin"
+    password = "admin123"
+} | ConvertTo-Json
+
+$response = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method Post -Body $body -ContentType "application/json"
+
+# Afficher le token
+$response.data.token
+
+# Sauvegarder le token
+$token = $response.data.token
+
+# Utiliser le token pour récupérer les produits
+$headers = @{
+    Authorization = "Bearer $token"
+}
+
+Invoke-RestMethod -Uri "http://localhost:8080/api/products" -Headers $headers
+Avec curl (si installé)
+powershell# Login
+curl -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"admin123\"}"
+
+# Récupérer les produits (remplacer YOUR_TOKEN)
+curl -X GET http://localhost:8080/api/products -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### 🌐 ACCÈS WEB
+
+Ouvrez votre navigateur et allez sur :
+
+1. **Swagger UI**
+```
+   http://localhost:8080/swagger-ui.html
+```
+
+2. **Health Check**
+```
+   http://localhost:8080/actuator/health
+```
+
+3. **PgAdmin (si activé)**
+```
+   http://localhost:5050
+🐛 DÉPANNAGE WINDOWS
+Problème : Docker Desktop ne démarre pas
+powershell# Vérifier WSL2
+wsl --status
+
+# Mettre à jour WSL2
+wsl --update
+
+# Redémarrer Docker Desktop
+Problème : Port 8080 déjà utilisé
+powershell# Trouver le processus
+netstat -ano | findstr :8080
+
+# Tuer le processus (remplacer PID)
+taskkill /PID <PID> /F
+Problème : Erreur de permissions
+powershell# Exécuter PowerShell en tant qu'administrateur
+# Clic droit sur PowerShell > "Exécuter en tant qu'administrateur"
+Problème : Docker compose file not found
+powershell# Vérifier que vous êtes dans le bon dossier
+pwd
+
+# Vérifier que docker-compose.yml existe
+dir docker-compose.yml
+📊 MONITORING SUR WINDOWS
+Créez monitor.bat :
+batch@echo off
+:loop
+cls
+echo ========================================
+echo   DUTY FREE - MONITORING
+echo ========================================
+echo.
+echo Containers Status:
+docker-compose ps
+echo.
+echo Application Logs (last 10 lines):
+docker-compose logs --tail=10 app
+echo.
+echo Next refresh in 30 seconds...
+timeout /t 30 /nobreak
+goto loop
+📝 FICHIER DE CONFIGURATION COMPLET
+Créez config.bat pour faciliter la gestion :
+batch@echo off
+:menu
+cls
+echo ========================================
+echo   DUTY FREE - MENU PRINCIPAL
+echo ========================================
+echo.
+echo 1. Demarrer l'application
+echo 2. Arreter l'application
+echo 3. Voir les logs
+echo 4. Health Check
+echo 5. Backup base de donnees
+echo 6. Ouvrir Swagger UI
+echo 7. Ouvrir PgAdmin
+echo 8. Nettoyer tout
+echo 9. Quitter
+echo.
+set /p choice="Choisissez une option (1-9): "
+
+if "%choice%"=="1" goto start
+if "%choice%"=="2" goto stop
+if "%choice%"=="3" goto logs
+if "%choice%"=="4" goto health
+if "%choice%"=="5" goto backup
+if "%choice%"=="6" goto swagger
+if "%choice%"=="7" goto pgadmin
+if "%choice%"=="8" goto clean
+if "%choice%"=="9" goto end
+
+:start
+echo Demarrage...
+docker-compose up -d
+pause
+goto menu
+
+:stop
+echo Arret...
+docker-compose down
+pause
+goto menu
+
+:logs
+docker-compose logs -f app
+goto menu
+
+:health
+call health-check.bat
+goto menu
+
+:backup
+call backup.bat
+goto menu
+
+:swagger
+start http://localhost:8080/swagger-ui.html
+goto menu
+
+:pgadmin
+start http://localhost:5050
+goto menu
+
+:clean
+echo ATTENTION: Cela va supprimer toutes les donnees!
+set /p confirm="Continuer? (O/N): "
+if /i "%confirm%"=="O" (
+    docker-compose down -v
+    docker system prune -f
+)
+pause
+goto menu
+
+:end
+exit
+🚀 DÉMARRAGE RAPIDE
+powershell# 1. Exécuter le setup
+.\setup.bat
+
+# 2. Éditer .env si nécessaire
+notepad .env
+
+# 3. Démarrer tout
+docker-compose up -d
+
+# 4. Vérifier la santé
+.\health-check.bat
+
+# 5. Ouvrir Swagger
+start http://localhost:8080/swagger-ui.html
+✅ CHECKLIST DE VÉRIFICATION
+
+ Docker Desktop installé et démarré
+ Fichiers .env créé et configuré
+ docker-compose up -d exécuté sans erreur
+ docker-compose ps montre tous les services "Up"
+ http://localhost:8080/actuator/health retourne "UP"
+ http://localhost:8080/swagger-ui.html accessible
+ Login avec admin/admin123 fonctionne
+
+
+Dites-moi quelle méthode vous préférez (Docker ou local) et où vous en êtes ! 🚀RéessayerClaude peut faire des erreurs. Assurez-vous de vérifier ses réponses. Sonnet 4.5

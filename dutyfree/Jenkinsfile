@@ -1,0 +1,229 @@
+pipeline {
+    agent any
+    
+    tools {
+        maven 'Maven 3.9'
+        jdk 'JDK 17'
+    }
+    
+    environment {
+        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_IMAGE = 'djbc/duty-free-backend'
+        SONAR_HOST_URL = 'https://sonarcloud.io'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                sh 'mvn clean compile -B -V'
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                sh 'mvn test -B'
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                    publishHTML(target: [
+                        reportDir: 'target/surefire-reports',
+                        reportFiles: 'index.html',
+                        reportName: 'Test Report'
+                    ])
+                }
+            }
+        }
+        
+        stage('Integration Tests') {
+            steps {
+                sh 'mvn verify -B'
+            }
+            post {
+                always {
+                    junit '**/target/failsafe-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Code Coverage') {
+            steps {
+                sh 'mvn jacoco:report'
+            }
+            post {
+                always {
+                    jacoco(
+                        execPattern: 'target/*.exec',
+                        classPattern: 'target/classes',
+                        sourcePattern: 'src/main/java',
+                        exclusionPattern: 'src/test*'
+                    )
+                }
+            }
+        }
+        
+        stage('SonarQube Analysis') {
+            when {
+                branch 'main'
+            }
+            steps {
+                withSonarQubeEnv('SonarCloud') {
+                    sh '''
+                        mvn sonar:sonar \
+                            -Dsonar.projectKey=duty-free-backend \
+                            -Dsonar.organization=djbc \
+                            -Dsonar.host.url=${SONAR_HOST_URL}
+                    '''
+                }
+            }
+        }
+        
+        stage('Quality Gate') {
+            when {
+                branch 'main'
+            }
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            parallel {
+                stage('Dependency Check') {
+                    steps {
+                        dependencyCheck additionalArguments: '''
+                            --scan .
+                            --format HTML
+                            --format XML
+                            --project duty-free-backend
+                        ''', odcInstallation: 'OWASP Dependency Check'
+                        
+                        dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    }
+                }
+                
+                stage('Trivy Scan') {
+                    steps {
+                        sh 'trivy fs --exit-code 0 --no-progress .'
+                    }
+                }
+            }
+        }
+        
+        stage('Package') {
+            steps {
+                sh 'mvn package -DskipTests -B'
+            }
+            post {
+                success {
+                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-credentials') {
+                        def customImage = docker.build("${DOCKER_IMAGE}:${env.BUILD_NUMBER}")
+                        customImage.push()
+                        customImage.push('latest')
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Staging') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                script {
+                    sshagent(['ssh-staging-credentials']) {
+                        sh '''
+                            ssh -o StrictHostKeyChecking=no staging@staging.dutyfree.com << 'EOF'
+                                cd /opt/duty-free-backend
+                                git pull origin develop
+                                docker-compose pull
+                                docker-compose up -d
+                                sleep 30
+                                curl -f http://localhost:8080/actuator/health || exit 1
+                            EOF
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                input message: 'Deploy to Production?', ok: 'Deploy'
+                
+                script {
+                    sshagent(['ssh-prod-credentials']) {
+                        sh '''
+                            ssh -o StrictHostKeyChecking=no prod@dutyfree.com << 'EOF'
+                                cd /opt/duty-free-backend
+                                ./backup.sh
+                                git pull origin main
+                                ./deploy.sh
+                            EOF
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Smoke Tests') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    def targetUrl = env.BRANCH_NAME == 'main' ? 
+                        'https://dutyfree.com' : 'https://staging.dutyfree.com'
+                    
+                    sh "curl -f ${targetUrl}/actuator/health || exit 1"
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            slackSend(
+                color: 'good',
+                message: "Build Successful: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+            )
+        }
+        failure {
+            slackSend(
+                color: 'danger',
+                message: "Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+            )
+        }
+    }
+}

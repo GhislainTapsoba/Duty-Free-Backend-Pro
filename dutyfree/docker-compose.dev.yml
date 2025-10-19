@@ -1,0 +1,45 @@
+# docker-compose.dev.yml
+version: '3.8'
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: dutyfree_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  redis:
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dutyfree_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_DEVTOOLS_RESTART_ENABLED: 'true'
+      SPRING_DEVTOOLS_LIVERELOAD_ENABLED: 'true'
+    volumes:
+      - ./src:/app/src
+      - ./target:/app/target
+      - app_logs:/app/logs
+    ports:
+      - "8080:8080"
+      - "35729:35729" # LiveReload port
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@dutyfree.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
