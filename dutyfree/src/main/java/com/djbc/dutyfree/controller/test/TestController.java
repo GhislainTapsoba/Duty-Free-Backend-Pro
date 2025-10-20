@@ -34,19 +34,41 @@ public class TestController {
                 response.put("role", user.getRole().toString());
                 response.put("passwordHashInDB", user.getPassword());
                 
+                // Vérifier le mot de passe
                 boolean matches = passwordEncoder.matches(password, user.getPassword());
                 response.put("passwordMatches", matches);
                 
+                // Générer un nouveau hash
                 String newHash = passwordEncoder.encode(password);
                 response.put("newHashGenerated", newHash);
-                response.put("newHashVerifies", passwordEncoder.matches(password, newHash));
+                
+                // Vérifier que le nouveau hash fonctionne
+                boolean newHashWorks = passwordEncoder.matches(password, newHash);
+                response.put("newHashVerifies", newHashWorks);
+                
+                // Test direct avec le hash en base
+                response.put("directTest", passwordEncoder.matches(password, user.getPassword()));
             } else {
-                response.put("error", "User not found in database");
+                response.put("error", "User not found");
             }
         } catch (Exception e) {
             response.put("exception", e.getMessage());
-            response.put("exceptionClass", e.getClass().getName());
+            response.put("exceptionType", e.getClass().getName());
         }
+        
+        return response;
+    }
+    
+    @PostMapping("/generate-hash")
+    public Map<String, String> generateHash(@RequestBody Map<String, String> request) {
+        String password = request.get("password");
+        
+        String hash = passwordEncoder.encode(password);
+        
+        Map<String, String> response = new HashMap<>();
+        response.put("password", password);
+        response.put("hash", hash);
+        response.put("verifies", String.valueOf(passwordEncoder.matches(password, hash)));
         
         return response;
     }

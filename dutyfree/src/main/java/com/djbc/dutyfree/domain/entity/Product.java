@@ -1,6 +1,5 @@
 package com.djbc.dutyfree.domain.entity;
 
-import com.djbc.dutyfree.domain.enums.Currency;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,16 +22,16 @@ public class Product extends BaseEntity {
     @Column(nullable = false, unique = true, length = 100)
     private String sku;
 
-    @Column(nullable = false, length = 200)
+    @Column(name = "name_fr", nullable = false, length = 200)
     private String nameFr;
 
-    @Column(nullable = false, length = 200)
+    @Column(name = "name_en", nullable = false, length = 200)
     private String nameEn;
 
-    @Column(length = 1000)
+    @Column(name = "description_fr", length = 1000)
     private String descriptionFr;
 
-    @Column(length = 1000)
+    @Column(name = "description_en", length = 1000)
     private String descriptionEn;
 
     @Column(unique = true, length = 50)
@@ -46,32 +45,34 @@ public class Product extends BaseEntity {
     @JoinColumn(name = "supplier_id")
     private Supplier supplier;
 
-    @Column(nullable = false, precision = 19, scale = 2)
+    @Column(name = "purchase_price", nullable = false, precision = 19, scale = 2)
     private BigDecimal purchasePrice;
 
-    @Column(nullable = false, precision = 19, scale = 2)
+    @Column(name = "selling_price_xof", nullable = false, precision = 19, scale = 2)
     private BigDecimal sellingPriceXOF;
 
-    @Column(precision = 19, scale = 2)
+    @Column(name = "selling_price_eur", precision = 19, scale = 2)
     private BigDecimal sellingPriceEUR;
 
-    @Column(precision = 19, scale = 2)
+    @Column(name = "selling_price_usd", precision = 19, scale = 2)
     private BigDecimal sellingPriceUSD;
 
-    @Column(nullable = false, precision = 5, scale = 2)
+    @Column(name = "tax_rate", nullable = false, precision = 5, scale = 2)
     private BigDecimal taxRate = BigDecimal.ZERO;
 
-    @Column(length = 500)
+    @Column(name = "image_url", length = 500)
     private String imageUrl;
 
     @Column(nullable = false)
     private Boolean active = true;
 
-    @Column(nullable = false)
+    @Column(name = "track_stock", nullable = false)
     private Boolean trackStock = true;
 
+    @Column(name = "min_stock_level")
     private Integer minStockLevel = 0;
 
+    @Column(name = "reorder_level")
     private Integer reorderLevel = 0;
 
     @Column(length = 50)

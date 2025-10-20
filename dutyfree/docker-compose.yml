@@ -28,7 +28,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: dutyfree-redis
-    command: redis-server --appendonly yes --requirepass redis_password
+    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     ports:
@@ -55,7 +55,6 @@ services:
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
-      SPRING_REDIS_PASSWORD: redis_password
       JWT_SECRET: ${JWT_SECRET:-MySecretKeyForDutyFreeApplicationThatIsLongEnough123456789}
       TZ: Africa/Ouagadougou
     volumes:

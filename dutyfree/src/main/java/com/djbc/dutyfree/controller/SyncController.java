@@ -9,9 +9,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @RestController
 @RequestMapping("/api/sync")
+@ConditionalOnProperty(name = "spring.redis.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearer-jwt")
 @Tag(name = "Synchronization", description = "Data synchronization APIs")

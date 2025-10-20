@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 
 @Service
+@ConditionalOnProperty(name = "spring.redis.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 public class SyncService {

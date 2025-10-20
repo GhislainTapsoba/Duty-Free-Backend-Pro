@@ -22,38 +22,38 @@ public class Payment extends BaseEntity {
     private Sale sale;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "payment_method", nullable = false, length = 20)
     private PaymentMethod paymentMethod;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private Currency currency;
 
-    @Column(nullable = false, precision = 19, scale = 2)
+    @Column(name = "amount_in_currency", nullable = false, precision = 19, scale = 2)
     private BigDecimal amountInCurrency;
 
-    @Column(nullable = false, precision = 19, scale = 2)
-    private BigDecimal amountInXOF;
+    @Column(name = "amount_in_xof", nullable = false, precision = 19, scale = 2)
+    private BigDecimal amountInXOF;  // 👈 GARDÉ EN MAJUSCULES
 
-    @Column(precision = 10, scale = 6)
+    @Column(name = "exchange_rate", precision = 10, scale = 6)
     private BigDecimal exchangeRate;
 
-    @Column(nullable = false)
+    @Column(name = "payment_date", nullable = false)
     private LocalDateTime paymentDate;
 
-    @Column(length = 100)
+    @Column(name = "transaction_reference", length = 100)
     private String transactionReference;
 
-    @Column(length = 100)
+    @Column(name = "card_last4_digits", length = 100)
     private String cardLast4Digits;
 
-    @Column(length = 50)
+    @Column(name = "card_type", length = 50)
     private String cardType;
 
-    @Column(length = 100)
+    @Column(name = "mobile_money_provider", length = 100)
     private String mobileMoneyProvider;
 
-    @Column(length = 100)
+    @Column(name = "mobile_money_number", length = 100)
     private String mobileMoneyNumber;
 
     @Column(length = 1000)
