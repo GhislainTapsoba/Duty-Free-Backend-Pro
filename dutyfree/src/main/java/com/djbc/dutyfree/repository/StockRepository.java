@@ -42,4 +42,8 @@ public interface StockRepository extends JpaRepository<Stock, Long> {
 
     @Query("SELECT s FROM Stock s WHERE s.location = :location AND s.deleted = false")
     List<Stock> findByLocation(@Param("location") String location);
+
+    @Query("SELECT s FROM Stock s WHERE s.availableQuantity <= :threshold AND s.deleted = false")
+    List<Stock> findLowStock(@Param("threshold") int threshold);
+
 }

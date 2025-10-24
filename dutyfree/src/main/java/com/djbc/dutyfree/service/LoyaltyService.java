@@ -1,5 +1,7 @@
 package com.djbc.dutyfree.service;
 
+import com.djbc.dutyfree.domain.dto.request.CreateLoyaltyCardRequest;
+import com.djbc.dutyfree.domain.dto.response.LoyaltyCardResponse;
 import com.djbc.dutyfree.domain.entity.Customer;
 import com.djbc.dutyfree.domain.entity.LoyaltyCard;
 import com.djbc.dutyfree.exception.BadRequestException;
@@ -14,7 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
+import java.util.Random;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,43 +27,67 @@ public class LoyaltyService {
     private final LoyaltyCardRepository loyaltyCardRepository;
     private final CustomerRepository customerRepository;
 
-    private static final BigDecimal POINTS_PER_XOF = new BigDecimal("0.01"); // 1 point per 100 XOF
-    private static final int CARD_VALIDITY_YEARS = 2;
-
     @Transactional
-    public LoyaltyCard createLoyaltyCard(Long customerId) {
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", customerId));
+    public LoyaltyCardResponse createCard(CreateLoyaltyCardRequest request) {
+        Customer customer = customerRepository.findById(request.getCustomerId())
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", request.getCustomerId()));
 
-        // Check if customer already has a loyalty card
-        if (loyaltyCardRepository.findByCustomerId(customerId).isPresent()) {
+        // Vérifier si le client a déjà une carte
+        if (loyaltyCardRepository.findByCustomerId(request.getCustomerId()).isPresent()) {
             throw new BadRequestException("Customer already has a loyalty card");
         }
 
+        // Générer un numéro de carte unique
         String cardNumber = generateCardNumber();
 
-        LoyaltyCard loyaltyCard = LoyaltyCard.builder()
-                .customer(customer)
+        // Date d'expiration : 2 ans par défaut
+        LocalDate expiryDate = request.getExpiryDate() != null 
+            ? request.getExpiryDate() 
+            : LocalDate.now().plusYears(2);
+
+        LoyaltyCard card = LoyaltyCard.builder()
                 .cardNumber(cardNumber)
-                .pointsBalance(BigDecimal.ZERO)
+                .customer(customer)
+                .points(0)
                 .walletBalance(BigDecimal.ZERO)
-                .issueDate(LocalDate.now())
-                .expiryDate(LocalDate.now().plusYears(CARD_VALIDITY_YEARS))
+                .tierLevel(request.getTierLevel())
+                .expiryDate(expiryDate)
                 .active(true)
-                .tier("STANDARD")
-                .discountPercentage(BigDecimal.ZERO)
-                .totalPurchases(0)
-                .totalSpent(BigDecimal.ZERO)
+                .lastUsedDate(LocalDate.now())
                 .build();
 
-        loyaltyCard = loyaltyCardRepository.save(loyaltyCard);
-        log.info("Loyalty card created for customer {}: {}", customerId, cardNumber);
+        card = loyaltyCardRepository.save(card);
+        log.info("Loyalty card created: {} for customer: {}", cardNumber, customer.getFirstName());
 
-        return loyaltyCard;
+        return mapToResponse(card);
+    }
+
+    @Transactional(readOnly = true)
+    public LoyaltyCardResponse getByCardNumber(String cardNumber) {
+        LoyaltyCard card = loyaltyCardRepository.findByCardNumber(cardNumber)
+                .orElseThrow(() -> new ResourceNotFoundException("LoyaltyCard", "cardNumber", cardNumber));
+        return mapToResponse(card);
+    }
+
+    @Transactional(readOnly = true)
+    public LoyaltyCardResponse getByCustomerId(Long customerId) {
+        LoyaltyCard card = loyaltyCardRepository.findByCustomerId(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("LoyaltyCard", "customerId", customerId));
+        return mapToResponse(card);
+    }
+
+    @Transactional(readOnly = true)
+    public List<LoyaltyCardResponse> getExpiringCards(int daysAhead) {
+        LocalDate startDate = LocalDate.now();
+        LocalDate endDate = startDate.plusDays(daysAhead);
+        return loyaltyCardRepository.findExpiringCards(startDate, endDate)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     @Transactional
-    public LoyaltyCard addPoints(String cardNumber, BigDecimal purchaseAmount) {
+    public LoyaltyCardResponse addPoints(String cardNumber, Integer points) {
         LoyaltyCard card = loyaltyCardRepository.findByCardNumber(cardNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("LoyaltyCard", "cardNumber", cardNumber));
 
@@ -68,30 +95,20 @@ public class LoyaltyService {
             throw new BadRequestException("Loyalty card is not active");
         }
 
-        if (card.getExpiryDate().isBefore(LocalDate.now())) {
-            throw new BadRequestException("Loyalty card has expired");
-        }
-
-        // Calculate points
-        BigDecimal points = purchaseAmount.multiply(POINTS_PER_XOF);
-        card.setPointsBalance(card.getPointsBalance().add(points));
-
-        // Update statistics
-        card.setTotalPurchases(card.getTotalPurchases() + 1);
-        card.setTotalSpent(card.getTotalSpent().add(purchaseAmount));
+        card.setPoints(card.getPoints() + points);
         card.setLastUsedDate(LocalDate.now());
 
-        // Update tier based on total spent
-        updateTier(card);
+        // Mise à jour du niveau selon les points
+        updateTierLevel(card);
 
         card = loyaltyCardRepository.save(card);
-        log.info("Added {} points to card {}", points, cardNumber);
+        log.info("Added {} points to card: {}", points, cardNumber);
 
-        return card;
+        return mapToResponse(card);
     }
 
     @Transactional
-    public LoyaltyCard redeemPoints(String cardNumber, BigDecimal points) {
+    public LoyaltyCardResponse redeemPoints(String cardNumber, Integer points) {
         LoyaltyCard card = loyaltyCardRepository.findByCardNumber(cardNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("LoyaltyCard", "cardNumber", cardNumber));
 
@@ -99,23 +116,25 @@ public class LoyaltyService {
             throw new BadRequestException("Loyalty card is not active");
         }
 
-        if (card.getPointsBalance().compareTo(points) < 0) {
-            throw new BadRequestException("Insufficient points balance");
+        if (card.getPoints() < points) {
+            throw new BadRequestException("Insufficient points");
         }
 
-        card.setPointsBalance(card.getPointsBalance().subtract(points));
+        card.setPoints(card.getPoints() - points);
+        card.setLastUsedDate(LocalDate.now());
 
-        // Convert points to wallet balance (1 point = 1 XOF)
-        card.setWalletBalance(card.getWalletBalance().add(points));
+        // Convertir points en argent (ex: 100 points = 1000 XOF)
+        BigDecimal amount = BigDecimal.valueOf(points * 10);
+        card.setWalletBalance(card.getWalletBalance().add(amount));
 
         card = loyaltyCardRepository.save(card);
-        log.info("Redeemed {} points from card {}", points, cardNumber);
+        log.info("Redeemed {} points from card: {}", points, cardNumber);
 
-        return card;
+        return mapToResponse(card);
     }
 
     @Transactional
-    public LoyaltyCard addToWallet(String cardNumber, BigDecimal amount) {
+    public LoyaltyCardResponse addToWallet(String cardNumber, BigDecimal amount) {
         LoyaltyCard card = loyaltyCardRepository.findByCardNumber(cardNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("LoyaltyCard", "cardNumber", cardNumber));
 
@@ -124,14 +143,16 @@ public class LoyaltyService {
         }
 
         card.setWalletBalance(card.getWalletBalance().add(amount));
+        card.setLastUsedDate(LocalDate.now());
+        
         card = loyaltyCardRepository.save(card);
+        log.info("Added {} to wallet of card: {}", amount, cardNumber);
 
-        log.info("Added {} XOF to wallet of card {}", amount, cardNumber);
-        return card;
+        return mapToResponse(card);
     }
 
     @Transactional
-    public LoyaltyCard deductFromWallet(String cardNumber, BigDecimal amount) {
+    public LoyaltyCardResponse deductFromWallet(String cardNumber, BigDecimal amount) {
         LoyaltyCard card = loyaltyCardRepository.findByCardNumber(cardNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("LoyaltyCard", "cardNumber", cardNumber));
 
@@ -144,41 +165,26 @@ public class LoyaltyService {
         }
 
         card.setWalletBalance(card.getWalletBalance().subtract(amount));
+        card.setLastUsedDate(LocalDate.now());
+        
         card = loyaltyCardRepository.save(card);
+        log.info("Deducted {} from wallet of card: {}", amount, cardNumber);
 
-        log.info("Deducted {} XOF from wallet of card {}", amount, cardNumber);
-        return card;
-    }
-
-    @Transactional(readOnly = true)
-    public LoyaltyCard getCardByNumber(String cardNumber) {
-        return loyaltyCardRepository.findByCardNumber(cardNumber)
-                .orElseThrow(() -> new ResourceNotFoundException("LoyaltyCard", "cardNumber", cardNumber));
-    }
-
-    @Transactional(readOnly = true)
-    public LoyaltyCard getCardByCustomer(Long customerId) {
-        return loyaltyCardRepository.findByCustomerId(customerId)
-                .orElseThrow(() -> new ResourceNotFoundException("LoyaltyCard for customer", "customerId", customerId));
-    }
-
-    @Transactional(readOnly = true)
-    public List<LoyaltyCard> getExpiringCards(int daysAhead) {
-        LocalDate expiryDate = LocalDate.now().plusDays(daysAhead);
-        return loyaltyCardRepository.findExpiringCards(expiryDate);
+        return mapToResponse(card);
     }
 
     @Transactional
-    public LoyaltyCard renewCard(String cardNumber) {
+    public LoyaltyCardResponse renewCard(String cardNumber) {
         LoyaltyCard card = loyaltyCardRepository.findByCardNumber(cardNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("LoyaltyCard", "cardNumber", cardNumber));
 
-        card.setExpiryDate(LocalDate.now().plusYears(CARD_VALIDITY_YEARS));
+        card.setExpiryDate(LocalDate.now().plusYears(2));
         card.setActive(true);
+        
         card = loyaltyCardRepository.save(card);
+        log.info("Renewed card: {}", cardNumber);
 
-        log.info("Loyalty card renewed: {}", cardNumber);
-        return card;
+        return mapToResponse(card);
     }
 
     @Transactional
@@ -188,30 +194,49 @@ public class LoyaltyService {
 
         card.setActive(false);
         loyaltyCardRepository.save(card);
+        log.info("Deactivated card: {}", cardNumber);
+    }
 
-        log.info("Loyalty card deactivated: {}", cardNumber);
+    private void updateTierLevel(LoyaltyCard card) {
+        int points = card.getPoints();
+        
+        if (points >= 10000) {
+            card.setTierLevel("PLATINUM");
+        } else if (points >= 5000) {
+            card.setTierLevel("GOLD");
+        } else if (points >= 2000) {
+            card.setTierLevel("SILVER");
+        } else {
+            card.setTierLevel("BRONZE");
+        }
     }
 
     private String generateCardNumber() {
-        String uuid = UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
-        return "LC" + uuid;
+        Random random = new Random();
+        StringBuilder sb = new StringBuilder("LC-");
+        
+        for (int i = 0; i < 12; i++) {
+            if (i > 0 && i % 4 == 0) {
+                sb.append("-");
+            }
+            sb.append(random.nextInt(10));
+        }
+        
+        return sb.toString();
     }
 
-    private void updateTier(LoyaltyCard card) {
-        BigDecimal totalSpent = card.getTotalSpent();
-
-        if (totalSpent.compareTo(new BigDecimal("5000000")) >= 0) { // 5M XOF
-            card.setTier("PLATINUM");
-            card.setDiscountPercentage(new BigDecimal("15"));
-        } else if (totalSpent.compareTo(new BigDecimal("2000000")) >= 0) { // 2M XOF
-            card.setTier("GOLD");
-            card.setDiscountPercentage(new BigDecimal("10"));
-        } else if (totalSpent.compareTo(new BigDecimal("500000")) >= 0) { // 500K XOF
-            card.setTier("SILVER");
-            card.setDiscountPercentage(new BigDecimal("5"));
-        } else {
-            card.setTier("STANDARD");
-            card.setDiscountPercentage(BigDecimal.ZERO);
-        }
+    private LoyaltyCardResponse mapToResponse(LoyaltyCard card) {
+        return LoyaltyCardResponse.builder()
+                .id(card.getId())
+                .cardNumber(card.getCardNumber())
+                .customerId(card.getCustomer().getId())
+                .customerName(card.getCustomer().getFirstName() + " " + card.getCustomer().getLastName())
+                .points(card.getPoints())
+                .walletBalance(card.getWalletBalance())
+                .tierLevel(card.getTierLevel())
+                .expiryDate(card.getExpiryDate())
+                .active(card.getActive())
+                .lastUsedDate(card.getLastUsedDate())
+                .build();
     }
 }

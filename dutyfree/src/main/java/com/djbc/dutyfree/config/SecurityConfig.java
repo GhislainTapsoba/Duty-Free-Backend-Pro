@@ -49,21 +49,22 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> {}) // ✅ Active ta configuration CORS globale (CorsConfig.java)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/test/**").permitAll()  // <-- AJOUTER CETTE LIGNE
-                        .requestMatchers("/actuator/**").permitAll()  // <-- AJOUTER CETTE LIGNE
+                        .requestMatchers("/api/test/**").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/ws/**").permitAll()  // <-- AJOUTER AUSSI (pour WebSocket)
-                        
+                        .requestMatchers("/ws/**").permitAll()
+
                         // Admin endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        
+
                         // Reports endpoints
                         .requestMatchers("/api/reports/**").hasAnyRole("ADMIN", "SUPERVISEUR")
-                        
+
                         // All other requests need authentication
                         .anyRequest().authenticated()
                 )

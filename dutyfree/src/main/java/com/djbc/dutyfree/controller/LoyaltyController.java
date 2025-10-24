@@ -1,7 +1,8 @@
 package com.djbc.dutyfree.controller;
 
+import com.djbc.dutyfree.domain.dto.request.CreateLoyaltyCardRequest;
 import com.djbc.dutyfree.domain.dto.response.ApiResponse;
-import com.djbc.dutyfree.domain.entity.LoyaltyCard;
+import com.djbc.dutyfree.domain.dto.response.LoyaltyCardResponse;
 import com.djbc.dutyfree.service.LoyaltyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -25,82 +27,92 @@ public class LoyaltyController {
     private final LoyaltyService loyaltyService;
 
     @PostMapping("/customer/{customerId}")
-    @Operation(summary = "Create loyalty card", description = "Create a loyalty card for a customer")
-    public ResponseEntity<ApiResponse<LoyaltyCard>> createLoyaltyCard(@PathVariable Long customerId) {
-        LoyaltyCard card = loyaltyService.createLoyaltyCard(customerId);
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISEUR')")
+    @Operation(summary = "Create loyalty card")
+    public ResponseEntity<ApiResponse<LoyaltyCardResponse>> createCard(
+            @PathVariable Long customerId,
+            @RequestBody(required = false) CreateLoyaltyCardRequest request) {
+        
+        if (request == null) {
+            request = new CreateLoyaltyCardRequest();
+        }
+        request.setCustomerId(customerId);
+        
+        LoyaltyCardResponse card = loyaltyService.createCard(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Loyalty card created successfully", card));
     }
 
-    @PostMapping("/{cardNumber}/points/add")
-    @Operation(summary = "Add points", description = "Add loyalty points based on purchase amount")
-    public ResponseEntity<ApiResponse<LoyaltyCard>> addPoints(
-            @PathVariable String cardNumber,
-            @RequestParam BigDecimal purchaseAmount) {
-        LoyaltyCard card = loyaltyService.addPoints(cardNumber, purchaseAmount);
-        return ResponseEntity.ok(ApiResponse.success("Points added successfully", card));
-    }
-
-    @PostMapping("/{cardNumber}/points/redeem")
-    @Operation(summary = "Redeem points", description = "Redeem loyalty points")
-    public ResponseEntity<ApiResponse<LoyaltyCard>> redeemPoints(
-            @PathVariable String cardNumber,
-            @RequestParam BigDecimal points) {
-        LoyaltyCard card = loyaltyService.redeemPoints(cardNumber, points);
-        return ResponseEntity.ok(ApiResponse.success("Points redeemed successfully", card));
-    }
-
-    @PostMapping("/{cardNumber}/wallet/add")
-    @Operation(summary = "Add to wallet", description = "Add amount to loyalty card wallet")
-    public ResponseEntity<ApiResponse<LoyaltyCard>> addToWallet(
-            @PathVariable String cardNumber,
-            @RequestParam BigDecimal amount) {
-        LoyaltyCard card = loyaltyService.addToWallet(cardNumber, amount);
-        return ResponseEntity.ok(ApiResponse.success("Amount added to wallet successfully", card));
-    }
-
-    @PostMapping("/{cardNumber}/wallet/deduct")
-    @Operation(summary = "Deduct from wallet", description = "Deduct amount from loyalty card wallet")
-    public ResponseEntity<ApiResponse<LoyaltyCard>> deductFromWallet(
-            @PathVariable String cardNumber,
-            @RequestParam BigDecimal amount) {
-        LoyaltyCard card = loyaltyService.deductFromWallet(cardNumber, amount);
-        return ResponseEntity.ok(ApiResponse.success("Amount deducted from wallet successfully", card));
-    }
-
     @GetMapping("/{cardNumber}")
-    @Operation(summary = "Get card by number", description = "Get loyalty card details by card number")
-    public ResponseEntity<ApiResponse<LoyaltyCard>> getCardByNumber(@PathVariable String cardNumber) {
-        LoyaltyCard card = loyaltyService.getCardByNumber(cardNumber);
+    @Operation(summary = "Get card by number")
+    public ResponseEntity<ApiResponse<LoyaltyCardResponse>> getByCardNumber(@PathVariable String cardNumber) {
+        LoyaltyCardResponse card = loyaltyService.getByCardNumber(cardNumber);
         return ResponseEntity.ok(ApiResponse.success(card));
     }
 
     @GetMapping("/customer/{customerId}")
-    @Operation(summary = "Get card by customer", description = "Get loyalty card by customer ID")
-    public ResponseEntity<ApiResponse<LoyaltyCard>> getCardByCustomer(@PathVariable Long customerId) {
-        LoyaltyCard card = loyaltyService.getCardByCustomer(customerId);
+    @Operation(summary = "Get card by customer")
+    public ResponseEntity<ApiResponse<LoyaltyCardResponse>> getByCustomer(@PathVariable Long customerId) {
+        LoyaltyCardResponse card = loyaltyService.getByCustomerId(customerId);
         return ResponseEntity.ok(ApiResponse.success(card));
     }
 
     @GetMapping("/expiring")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISEUR')")
-    @Operation(summary = "Get expiring cards", description = "Get loyalty cards expiring soon")
-    public ResponseEntity<ApiResponse<List<LoyaltyCard>>> getExpiringCards(
+    @Operation(summary = "Get expiring cards")
+    public ResponseEntity<ApiResponse<List<LoyaltyCardResponse>>> getExpiringCards(
             @RequestParam(defaultValue = "30") int daysAhead) {
-        List<LoyaltyCard> cards = loyaltyService.getExpiringCards(daysAhead);
+        List<LoyaltyCardResponse> cards = loyaltyService.getExpiringCards(daysAhead);
         return ResponseEntity.ok(ApiResponse.success(cards));
     }
 
+    @PostMapping("/{cardNumber}/points/add")
+    @Operation(summary = "Add points")
+    public ResponseEntity<ApiResponse<LoyaltyCardResponse>> addPoints(
+            @PathVariable String cardNumber,
+            @RequestParam Integer points) {
+        LoyaltyCardResponse card = loyaltyService.addPoints(cardNumber, points);
+        return ResponseEntity.ok(ApiResponse.success("Points added successfully", card));
+    }
+
+    @PostMapping("/{cardNumber}/points/redeem")
+    @Operation(summary = "Redeem points")
+    public ResponseEntity<ApiResponse<LoyaltyCardResponse>> redeemPoints(
+            @PathVariable String cardNumber,
+            @RequestParam Integer points) {
+        LoyaltyCardResponse card = loyaltyService.redeemPoints(cardNumber, points);
+        return ResponseEntity.ok(ApiResponse.success("Points redeemed successfully", card));
+    }
+
+    @PostMapping("/{cardNumber}/wallet/add")
+    @Operation(summary = "Add to wallet")
+    public ResponseEntity<ApiResponse<LoyaltyCardResponse>> addToWallet(
+            @PathVariable String cardNumber,
+            @RequestParam BigDecimal amount) {
+        LoyaltyCardResponse card = loyaltyService.addToWallet(cardNumber, amount);
+        return ResponseEntity.ok(ApiResponse.success("Amount added to wallet", card));
+    }
+
+    @PostMapping("/{cardNumber}/wallet/deduct")
+    @Operation(summary = "Deduct from wallet")
+    public ResponseEntity<ApiResponse<LoyaltyCardResponse>> deductFromWallet(
+            @PathVariable String cardNumber,
+            @RequestParam BigDecimal amount) {
+        LoyaltyCardResponse card = loyaltyService.deductFromWallet(cardNumber, amount);
+        return ResponseEntity.ok(ApiResponse.success("Amount deducted from wallet", card));
+    }
+
     @PostMapping("/{cardNumber}/renew")
-    @Operation(summary = "Renew card", description = "Renew a loyalty card")
-    public ResponseEntity<ApiResponse<LoyaltyCard>> renewCard(@PathVariable String cardNumber) {
-        LoyaltyCard card = loyaltyService.renewCard(cardNumber);
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISEUR')")
+    @Operation(summary = "Renew card")
+    public ResponseEntity<ApiResponse<LoyaltyCardResponse>> renewCard(@PathVariable String cardNumber) {
+        LoyaltyCardResponse card = loyaltyService.renewCard(cardNumber);
         return ResponseEntity.ok(ApiResponse.success("Card renewed successfully", card));
     }
 
     @PostMapping("/{cardNumber}/deactivate")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISEUR')")
-    @Operation(summary = "Deactivate card", description = "Deactivate a loyalty card")
+    @Operation(summary = "Deactivate card")
     public ResponseEntity<ApiResponse<Void>> deactivateCard(@PathVariable String cardNumber) {
         loyaltyService.deactivateCard(cardNumber);
         return ResponseEntity.ok(ApiResponse.success("Card deactivated successfully", null));

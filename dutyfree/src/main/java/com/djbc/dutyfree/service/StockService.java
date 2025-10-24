@@ -188,4 +188,10 @@ public class StockService {
     public List<Stock> getExpiredStock() {
         return stockRepository.findExpiredStock(LocalDate.now());
     }
+
+    @Transactional(readOnly = true)
+    public List<Stock> getLowStock(int threshold) {
+        log.info("Fetching low stock with threshold: {}", threshold);
+        return stockRepository.findLowStock(threshold > 0 ? threshold : 10);
+    }
 }

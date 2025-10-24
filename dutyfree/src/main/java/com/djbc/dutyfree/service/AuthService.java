@@ -53,6 +53,7 @@ public class AuthService {
             userRepository.save(user);
 
             log.info("User {} logged in successfully", user.getUsername());
+            log.info("Login request received for username: {}", request.getUsername());
 
             return AuthResponse.builder()
                     .token(token)
