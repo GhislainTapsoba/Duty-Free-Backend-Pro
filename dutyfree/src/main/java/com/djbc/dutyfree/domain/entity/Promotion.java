@@ -33,6 +33,7 @@ public class Promotion extends BaseEntity {
     private LocalDateTime endDate;
 
     @Column(length = 20)
+    @Builder.Default
     private String discountType = "PERCENTAGE"; // PERCENTAGE, FIXED_AMOUNT
 
     @Column(nullable = false, precision = 19, scale = 2)
@@ -45,14 +46,17 @@ public class Promotion extends BaseEntity {
     private BigDecimal maximumDiscountAmount;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean active = true;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean stackable = false;
 
     private Integer usageLimit;
 
     @Column(nullable = false)
+    @Builder.Default
     private Integer usageCount = 0;
 
     @ManyToMany
@@ -61,6 +65,7 @@ public class Promotion extends BaseEntity {
             joinColumns = @JoinColumn(name = "promotion_id"),
             inverseJoinColumns = @JoinColumn(name = "product_id")
     )
+    @Builder.Default
     private List<Product> applicableProducts = new ArrayList<>();
 
     @ManyToMany
@@ -69,9 +74,11 @@ public class Promotion extends BaseEntity {
             joinColumns = @JoinColumn(name = "promotion_id"),
             inverseJoinColumns = @JoinColumn(name = "category_id")
     )
+    @Builder.Default
     private List<Category> applicableCategories = new ArrayList<>();
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean applyToAllProducts = false;
 
     @Column(length = 1000)

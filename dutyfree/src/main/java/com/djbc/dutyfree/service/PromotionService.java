@@ -15,6 +15,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.djbc.dutyfree.domain.enums.DiscountType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -25,12 +26,14 @@ import java.util.List;
 @Slf4j
 public class PromotionService {
 
+    private static final String CACHE_NAME = "promotions";
+
     private final PromotionRepository promotionRepository;
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
 
     @Transactional
-    @CacheEvict(value = "promotions", allEntries = true)
+    @CacheEvict(value = CACHE_NAME, allEntries = true)
     public Promotion createPromotion(Promotion promotion) {
         // Validate code uniqueness
         if (promotionRepository.existsByCode(promotion.getCode())) {
@@ -51,7 +54,7 @@ public class PromotionService {
     }
 
     @Transactional
-    @CacheEvict(value = "promotions", allEntries = true)
+    @CacheEvict(value = CACHE_NAME, allEntries = true)
     public Promotion updatePromotion(Long id, Promotion promotionData) {
         Promotion promotion = promotionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Promotion", "id", id));
@@ -84,7 +87,7 @@ public class PromotionService {
     }
 
     @Transactional
-    @CacheEvict(value = "promotions", allEntries = true)
+    @CacheEvict(value = CACHE_NAME, allEntries = true)
     public void addProductToPromotion(Long promotionId, Long productId) {
         Promotion promotion = promotionRepository.findByIdWithProducts(promotionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Promotion", "id", promotionId));
@@ -130,7 +133,7 @@ public class PromotionService {
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(value = "promotions")
+    @Cacheable(value = CACHE_NAME)
     public List<Promotion> getActivePromotions() {
         return promotionRepository.findActivePromotions(LocalDateTime.now());
     }
@@ -147,7 +150,7 @@ public class PromotionService {
     }
 
     @Transactional
-    @CacheEvict(value = "promotions", allEntries = true)
+    @CacheEvict(value = CACHE_NAME, allEntries = true)
     public void incrementUsageCount(Long promotionId) {
         Promotion promotion = promotionRepository.findById(promotionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Promotion", "id", promotionId));
@@ -165,7 +168,7 @@ public class PromotionService {
     }
 
     @Transactional
-    @CacheEvict(value = "promotions", allEntries = true)
+    @CacheEvict(value = CACHE_NAME, allEntries = true)
     public void activatePromotion(Long id) {
         Promotion promotion = promotionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Promotion", "id", id));
@@ -176,7 +179,7 @@ public class PromotionService {
     }
 
     @Transactional
-    @CacheEvict(value = "promotions", allEntries = true)
+    @CacheEvict(value = CACHE_NAME, allEntries = true)
     public void deactivatePromotion(Long id) {
         Promotion promotion = promotionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Promotion", "id", id));
@@ -187,7 +190,15 @@ public class PromotionService {
     }
 
     public BigDecimal calculateDiscount(Promotion promotion, BigDecimal amount) {
-        if ("PERCENTAGE".equals(promotion.getDiscountType())) {
+        if (promotion.getDiscountValue().compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Discount value cannot be negative");
+        }
+
+        if (DiscountType.PERCENTAGE.name().equals(promotion.getDiscountType())) {
+            if (promotion.getDiscountValue().compareTo(BigDecimal.valueOf(100)) > 0) {
+                throw new BadRequestException("Percentage discount cannot be greater than 100%");
+            }
+
             BigDecimal discount = amount.multiply(promotion.getDiscountValue())
                     .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
@@ -199,7 +210,8 @@ public class PromotionService {
 
             return discount;
         } else { // FIXED_AMOUNT
-            return promotion.getDiscountValue();
+            return amount.compareTo(promotion.getDiscountValue()) < 0 ? 
+                   amount : promotion.getDiscountValue();
         }
     }
 }

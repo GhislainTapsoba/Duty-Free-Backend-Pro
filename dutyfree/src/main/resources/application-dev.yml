@@ -1,32 +1,36 @@
-# application-dev.yml
+# ========================================
+# FICHIER DE CONFIGURATION SPRING - DEV
+# Profil: dev
+# ========================================
+
 spring:
   config:
     activate:
-      on-profile: dev
-
-  # DÉSACTIVER REDIS EN DEV
-  redis:
-    enabled: false
+      on-profile: dev  # Active ce fichier uniquement pour le profil dev
 
   application:
     name: duty-free-backend
 
   main:
-    allow-bean-definition-overriding: true
+    allow-bean-definition-overriding: true  # Permet de redéfinir des beans si besoin
 
   # ========================================
-  # DÉSACTIVER COMPLÈTEMENT REDIS
+  # REDIS & CACHE
+  # Désactivation complète en environnement de développement
   # ========================================
+  redis:
+    enabled: false
+
   cache:
-    type: none
-  
+    type: none  # Désactive complètement le cache Spring
+
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
   # ========================================
-  # DATABASE
+  # DATABASE (PostgreSQL)
   # ========================================
   datasource:
     url: jdbc:postgresql://dutyfree-postgres-1:5432/dutyfree_db
@@ -36,16 +40,16 @@ spring:
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
-      connection-timeout: 20000
+      connection-timeout: 20000  # 20 secondes
 
   # ========================================
   # JPA / HIBERNATE
   # ========================================
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
-    open-in-view: false
+    open-in-view: false  # Désactive le OpenSessionInView pour éviter les problèmes LazyInitialization
     hibernate:
-      ddl-auto: none
+      ddl-auto: none  # Pas de modification automatique de la base en dev
       naming:
         physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
         implicit-strategy: org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy
@@ -59,10 +63,10 @@ spring:
           batch_size: 20
         order_updates: true
         order_inserts: true
-    show-sql: true
+    show-sql: true  # Affiche les requêtes SQL dans la console
 
   # ========================================
-  # FLYWAY
+  # FLYWAY (Gestion des migrations)
   # ========================================
   flyway:
     enabled: true
@@ -79,21 +83,21 @@ spring:
       max-request-size: 10MB
 
 # ========================================
-# JWT
+# JWT (JSON Web Token)
 # ========================================
 jwt:
   secret: ${JWT_SECRET:MySecretKeyForDutyFreeApplicationThatIsLongEnough123456789}
-  expiration: 86400000
+  expiration: 86400000  # 24 heures en millisecondes
 
 # ========================================
 # LOGGING
 # ========================================
 logging:
   level:
-    com.djbc.dutyfree: DEBUG
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.djbc.dutyfree: DEBUG               # Logs détaillés pour ton application
+    org.springframework.security: DEBUG     # Logs sécurité
+    org.hibernate.SQL: DEBUG                # Affiche les requêtes SQL
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE  # Trace les valeurs des paramètres SQL
 
 # ========================================
 # SWAGGER / OPENAPI

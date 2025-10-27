@@ -10,6 +10,13 @@ pipeline {
         DOCKER_REGISTRY = 'docker.io'
         DOCKER_IMAGE = 'djbc/duty-free-backend'
         SONAR_HOST_URL = 'https://sonarcloud.io'
+        VERSION = sh(script: 'mvn help:evaluate -Dexpression=project.version -q -DforceStdout', returnStdout: true).trim()
+        MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
+    }
+
+    options {
+        timeout(time: 1, unit: 'HOURS')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
     }
     
     stages {
@@ -25,29 +32,38 @@ pipeline {
             }
         }
         
-        stage('Unit Tests') {
-            steps {
-                sh 'mvn test -B'
-            }
-            post {
-                always {
-                    junit '**/target/surefire-reports/*.xml'
-                    publishHTML(target: [
-                        reportDir: 'target/surefire-reports',
-                        reportFiles: 'index.html',
-                        reportName: 'Test Report'
-                    ])
+        stage('Tests') {
+            parallel {
+                stage('Unit Tests') {
+                    steps {
+                        sh 'mvn test -B'
+                    }
+                    post {
+                        always {
+                            junit '**/target/surefire-reports/*.xml'
+                            publishHTML(target: [
+                                reportDir: 'target/surefire-reports',
+                                reportFiles: 'index.html',
+                                reportName: 'Unit Test Report'
+                            ])
+                        }
+                    }
                 }
-            }
-        }
-        
-        stage('Integration Tests') {
-            steps {
-                sh 'mvn verify -B'
-            }
-            post {
-                always {
-                    junit '**/target/failsafe-reports/*.xml'
+                
+                stage('Integration Tests') {
+                    steps {
+                        sh 'mvn verify -B -DskipUnitTests'
+                    }
+                    post {
+                        always {
+                            junit '**/target/failsafe-reports/*.xml'
+                            publishHTML(target: [
+                                reportDir: 'target/failsafe-reports',
+                                reportFiles: 'index.html',
+                                reportName: 'Integration Test Report'
+                            ])
+                        }
+                    }
                 }
             }
         }
@@ -129,22 +145,34 @@ pipeline {
             }
         }
         
-        stage('Build Docker Image') {
+        stage('Docker Build and Push') {
             when {
                 anyOf {
                     branch 'main'
                     branch 'develop'
                 }
             }
-            steps {
-                script {
-                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-credentials') {
-                        def customImage = docker.build("${DOCKER_IMAGE}:${env.BUILD_NUMBER}")
-                        customImage.push()
-                        customImage.push('latest')
+            stages {
+                stage('Validate Dockerfile') {
+                    steps {
+                        sh 'hadolint Dockerfile'
                     }
                 }
-            }
+                
+                stage('Build and Push Image') {
+                    steps {
+                        script {
+                            docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-credentials') {
+                                def tag = env.BRANCH_NAME == 'main' ? VERSION : "${VERSION}-${env.BUILD_NUMBER}"
+                                def customImage = docker.build("${DOCKER_IMAGE}:${tag}")
+                                customImage.push()
+                                
+                                if (env.BRANCH_NAME == 'main') {
+                                    customImage.push('latest')
+                                }
+                            }
+                        }
+                    }
         }
         
         stage('Deploy to Staging') {
@@ -191,19 +219,46 @@ pipeline {
             }
         }
         
-        stage('Smoke Tests') {
+        stage('Post-Deployment Tests') {
             when {
                 anyOf {
                     branch 'main'
                     branch 'develop'
                 }
             }
-            steps {
-                script {
-                    def targetUrl = env.BRANCH_NAME == 'main' ? 
-                        'https://dutyfree.com' : 'https://staging.dutyfree.com'
-                    
-                    sh "curl -f ${targetUrl}/actuator/health || exit 1"
+            parallel {
+                stage('Smoke Tests') {
+                    steps {
+                        script {
+                            def targetUrl = env.BRANCH_NAME == 'main' ? 
+                                'https://dutyfree.com' : 'https://staging.dutyfree.com'
+                            
+                            sh """
+                                curl -f ${targetUrl}/actuator/health || exit 1
+                                curl -f ${targetUrl}/actuator/metrics || exit 1
+                            """
+                        }
+                    }
+                }
+                
+                stage('Performance Tests') {
+                    steps {
+                        script {
+                            def targetUrl = env.BRANCH_NAME == 'main' ? 
+                                'https://dutyfree.com' : 'https://staging.dutyfree.com'
+                            
+                            sh """
+                                k6 run performance-tests/load-test.js \
+                                    -e TARGET_URL=${targetUrl} \
+                                    --summary-export=k6-summary.json
+                            """
+                        }
+                    }
+                    post {
+                        always {
+                            archiveArtifacts artifacts: 'k6-summary.json', fingerprint: true
+                        }
+                    }
                 }
             }
         }
@@ -214,16 +269,48 @@ pipeline {
             cleanWs()
         }
         success {
-            slackSend(
-                color: 'good',
-                message: "Build Successful: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
-            )
+            script {
+                def message = """
+                    :white_check_mark: *Build Successful*
+                    *Job:* ${env.JOB_NAME} #${env.BUILD_NUMBER}
+                    *Branch:* ${env.BRANCH_NAME}
+                    *Duration:* ${currentBuild.durationString}
+                    *Test Results:* ${currentBuild.rawBuild.getAction(hudson.tasks.junit.TestResultAction.class)?.totalCount ?: 'N/A'} tests run
+                    *Coverage:* ${currentBuild.rawBuild.getAction(hudson.plugins.jacoco.JacocoBuildAction.class)?.percentage ?: 'N/A'}%
+                    
+                    <${env.BUILD_URL}|View Build Details>
+                """
+                slackSend(color: 'good', message: message)
+            }
         }
         failure {
-            slackSend(
-                color: 'danger',
-                message: "Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
-            )
+            script {
+                def message = """
+                    :x: *Build Failed*
+                    *Job:* ${env.JOB_NAME} #${env.BUILD_NUMBER}
+                    *Branch:* ${env.BRANCH_NAME}
+                    *Duration:* ${currentBuild.durationString}
+                    *Failed Stage:* ${currentBuild.result}
+                    
+                    <${env.BUILD_URL}|View Build Details>
+                    <${env.BUILD_URL}console|View Console Output>
+                """
+                slackSend(color: 'danger', message: message)
+            }
+        }
+        unstable {
+            script {
+                def message = """
+                    :warning: *Build Unstable*
+                    *Job:* ${env.JOB_NAME} #${env.BUILD_NUMBER}
+                    *Branch:* ${env.BRANCH_NAME}
+                    *Duration:* ${currentBuild.durationString}
+                    *Test Results:* ${currentBuild.rawBuild.getAction(hudson.tasks.junit.TestResultAction.class)?.failCount ?: 'N/A'} failures
+                    
+                    <${env.BUILD_URL}|View Build Details>
+                """
+                slackSend(color: 'warning', message: message)
+            }
         }
     }
 }

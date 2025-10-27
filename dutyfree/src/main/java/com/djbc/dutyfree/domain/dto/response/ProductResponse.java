@@ -25,9 +25,9 @@ public class ProductResponse {
     private Long supplierId;
     private String supplierName;
     private BigDecimal purchasePrice;
-    private BigDecimal sellingPriceXOF;
-    private BigDecimal sellingPriceEUR;
-    private BigDecimal sellingPriceUSD;
+    private BigDecimal priceXOF; // <-- au lieu de sellingPriceXOF
+    private BigDecimal priceEUR;
+    private BigDecimal priceUSD;
     private BigDecimal taxRate;
     private String imageUrl;
     private Boolean active;
