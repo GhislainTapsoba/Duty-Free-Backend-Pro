@@ -21,11 +21,11 @@ public interface LoyaltyCardRepository extends JpaRepository<LoyaltyCard, Long> 
 
     List<LoyaltyCard> findByActiveTrue();
 
-    List<LoyaltyCard> findByTier(String tier);
+    List<LoyaltyCard> findByTierLevel(String tierLevel);
 
-    @Query("SELECT lc FROM LoyaltyCard lc WHERE lc.expiryDate <= :date " +
+    @Query("SELECT lc FROM LoyaltyCard lc WHERE lc.expiryDate BETWEEN :startDate AND :endDate " +
             "AND lc.active = true AND lc.deleted = false")
-    List<LoyaltyCard> findExpiringCards(@Param("date") LocalDate date);
+    List<LoyaltyCard> findExpiringCards(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 
     @Query("SELECT lc FROM LoyaltyCard lc WHERE lc.expiryDate < :date " +
             "AND lc.active = true AND lc.deleted = false")

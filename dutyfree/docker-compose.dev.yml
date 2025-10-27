@@ -3,6 +3,7 @@ version: '3.8'
 
 services:
   postgres:
+    image: postgres:15-alpine
     ports:
       - "5432:5432"
     environment:
@@ -11,6 +12,7 @@ services:
       POSTGRES_PASSWORD: postgres
 
   redis:
+    image: redis:7-alpine
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
@@ -31,7 +33,6 @@ services:
     volumes:
       - ./src:/app/src
       - ./target:/app/target
-      - app_logs:/app/logs
     ports:
       - "8080:8080"
       - "35729:35729" # LiveReload port

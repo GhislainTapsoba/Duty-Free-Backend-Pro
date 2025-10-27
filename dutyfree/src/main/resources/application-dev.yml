@@ -29,7 +29,7 @@ spring:
   # DATABASE
   # ========================================
   datasource:
-    url: jdbc:postgresql://postgres:5432/dutyfree_db
+    url: jdbc:postgresql://dutyfree-postgres-1:5432/dutyfree_db
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
