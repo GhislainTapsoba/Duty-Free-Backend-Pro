@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -188,7 +189,7 @@ public class PromotionService {
     public BigDecimal calculateDiscount(Promotion promotion, BigDecimal amount) {
         if ("PERCENTAGE".equals(promotion.getDiscountType())) {
             BigDecimal discount = amount.multiply(promotion.getDiscountValue())
-                    .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
             // Apply maximum discount limit if set
             if (promotion.getMaximumDiscountAmount() != null &&

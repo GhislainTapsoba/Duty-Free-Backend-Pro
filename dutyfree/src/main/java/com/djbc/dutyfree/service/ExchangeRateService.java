@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -98,7 +99,7 @@ public class ExchangeRateService {
             return amountInXOF;
         } else {
             BigDecimal toRate = getExchangeRate(toCurrency);
-            return amountInXOF.divide(toRate, 2, BigDecimal.ROUND_HALF_UP);
+            return amountInXOF.divide(toRate, 2, RoundingMode.HALF_UP);
         }
     }
 }

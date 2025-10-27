@@ -22,18 +22,22 @@ public class LoyaltyCard extends BaseEntity {
     private Customer customer;
 
     @Column(nullable = false)
+    @Builder.Default
     private Integer points = 0;
 
     @Column(name = "wallet_balance", nullable = false, precision = 19, scale = 2)
+    @Builder.Default
     private BigDecimal walletBalance = BigDecimal.ZERO;
 
     @Column(name = "tier_level", length = 20)
+    @Builder.Default
     private String tierLevel = "BRONZE"; // BRONZE, SILVER, GOLD, PLATINUM
 
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean active = true;
 
     @Column(name = "last_used_date")
