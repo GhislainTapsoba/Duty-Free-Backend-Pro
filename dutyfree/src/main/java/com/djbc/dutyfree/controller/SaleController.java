@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -23,6 +24,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/sales")
 @RequiredArgsConstructor
+@Slf4j
 @SecurityRequirement(name = "bearer-jwt")
 @Tag(name = "Sales", description = "Sales management APIs")
 public class SaleController {
@@ -31,10 +33,16 @@ public class SaleController {
 
     @PostMapping
     @Operation(summary = "Create sale", description = "Create a new sale transaction")
-    public ResponseEntity<ApiResponse<SaleResponse>> createSale(@Valid @RequestBody SaleRequest request) {
-        SaleResponse sale = saleService.createSale(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Sale created successfully", sale));
+    public ResponseEntity<ApiResponse<SaleResponse>> createSale(@RequestBody SaleRequest request) {
+        try {
+            SaleResponse sale = saleService.createSale(request);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.success("Sale created successfully", sale));
+        } catch (Exception e) {
+            log.error("Error creating sale: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Failed to create sale: " + e.getMessage()));
+        }
     }
 
     @PostMapping("/{saleId}/complete")

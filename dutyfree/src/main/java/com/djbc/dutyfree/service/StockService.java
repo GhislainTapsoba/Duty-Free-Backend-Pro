@@ -1,12 +1,15 @@
 package com.djbc.dutyfree.service;
 
+import com.djbc.dutyfree.domain.dto.response.StockMovementResponse;
 import com.djbc.dutyfree.domain.entity.Product;
 import com.djbc.dutyfree.domain.entity.Sommier;
 import com.djbc.dutyfree.domain.entity.Stock;
+import com.djbc.dutyfree.domain.entity.StockMovement;
 import com.djbc.dutyfree.exception.BadRequestException;
 import com.djbc.dutyfree.exception.ResourceNotFoundException;
 import com.djbc.dutyfree.repository.ProductRepository;
 import com.djbc.dutyfree.repository.SommierRepository;
+import com.djbc.dutyfree.repository.StockMovementRepository;
 import com.djbc.dutyfree.repository.StockRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +17,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +30,7 @@ public class StockService {
     private final StockRepository stockRepository;
     private final ProductRepository productRepository;
     private final SommierRepository sommierRepository;
+    private final StockMovementRepository stockMovementRepository;
 
     @Transactional
     public Stock addStock(Long productId, Long sommierId, Integer quantity,
@@ -161,6 +168,105 @@ public class StockService {
     }
 
     @Transactional(readOnly = true)
+    public List<StockMovementResponse> getStockMovements() {
+        log.info("Starting to fetch all stock movements");
+        
+        try {
+            List<StockMovement> movements = stockMovementRepository.findAll();
+            log.info("Found {} stock movements from database", movements != null ? movements.size() : 0);
+
+            if (movements == null || movements.isEmpty()) {
+                log.info("No stock movements found, returning empty list");
+                return new ArrayList<>();
+            }
+
+            List<StockMovementResponse> responses = new ArrayList<>();
+            
+            for (StockMovement movement : movements) {
+                try {
+                    if (movement == null) {
+                        log.warn("Skipping null movement");
+                        continue;
+                    }
+
+                    Long stockId = null;
+                    Long productId = null;
+                    String productName = "Unknown Product";
+                    String productCode = null;
+
+                    // Récupérer les infos du produit via Stock (pas directement)
+                    try {
+                        Stock stock = movement.getStock();
+                        if (stock != null) {
+                            stockId = stock.getId();
+                            Product product = stock.getProduct();
+                            if (product != null) {
+                                productId = product.getId();
+                                productCode = product.getSku();
+                                
+                                // Essayer d'abord nameFr, puis nameEn
+                                String nameFr = product.getNameFr();
+                                if (nameFr != null && !nameFr.trim().isEmpty()) {
+                                    productName = nameFr;
+                                } else {
+                                    String nameEn = product.getNameEn();
+                                    if (nameEn != null && !nameEn.trim().isEmpty()) {
+                                        productName = nameEn;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("Error accessing stock/product for movement {}: {}", movement.getId(), e.getMessage());
+                    }
+
+                    // Utiliser movementDate (pas createdAt)
+                    LocalDateTime date = movement.getMovementDate() != null 
+                        ? movement.getMovementDate() 
+                        : movement.getCreatedAt();
+                    
+                    Integer quantity = movement.getQuantity() != null 
+                        ? movement.getQuantity() 
+                        : 0;
+                    
+                    // Utiliser type enum
+                    String type = movement.getType() != null 
+                        ? movement.getType().toString() 
+                        : "UNKNOWN";
+
+                    StockMovementResponse response = StockMovementResponse.builder()
+                            .id(movement.getId())
+                            .productId(productId)
+                            .productName(productName)
+                            .type(type)
+                            .quantity(quantity)
+                            .date(date)
+                            .build();
+
+                    responses.add(response);
+                    
+                } catch (Exception e) {
+                    log.error("Error processing movement {}: {}", 
+                        movement != null ? movement.getId() : "null", 
+                        e.getMessage(), e);
+                }
+            }
+
+            log.info("Successfully processed {} stock movements", responses.size());
+            return responses;
+            
+        } catch (Exception e) {
+            log.error("Fatal error fetching stock movements: {}", e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<Stock> getAllStocks() {
+        return stockRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
     public List<Stock> getStocksByProduct(Long productId) {
         return stockRepository.findActiveStocksByProductId(productId);
     }
@@ -193,5 +299,96 @@ public class StockService {
     public List<Stock> getLowStock(int threshold) {
         log.info("Fetching low stock with threshold: {}", threshold);
         return stockRepository.findLowStock(threshold > 0 ? threshold : 10);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Stock> getAllMovements() {
+        return stockRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<StockMovementResponse> getStockMovementsByProductId(Long productId) {
+        try {
+            List<StockMovement> allMovements = stockMovementRepository.findByProductId(productId);
+            
+            return allMovements.stream()
+                    .map((StockMovement movement) -> {
+                        String productName = "Unknown Product";
+                        String productCode = null;
+                        
+                        try {
+                            Stock stock = movement.getStock();
+                            if (stock != null && stock.getProduct() != null) {
+                                Product product = stock.getProduct();
+                                productCode = product.getSku();
+                                productName = product.getNameFr() != null 
+                                    ? product.getNameFr() 
+                                    : product.getNameEn();
+                            }
+                        } catch (Exception e) {
+                            log.warn("Error accessing product name: {}", e.getMessage());
+                        }
+                        
+                        LocalDateTime date = movement.getMovementDate() != null 
+                            ? movement.getMovementDate() 
+                            : movement.getCreatedAt();
+                        
+                        return StockMovementResponse.builder()
+                                .id(movement.getId())
+                                .productId(productId)
+                                .productName(productName)
+                                .quantity(movement.getQuantity())
+                                .type(movement.getType() != null ? movement.getType().toString() : "UNKNOWN")
+                                .date(date)
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+                    
+        } catch (Exception e) {
+            log.error("Error fetching movements for product {}: {}", productId, e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Integer getTotalStockMovementsByProduct(Long productId) {
+        try {
+            return stockMovementRepository.findByProductId(productId).size();
+        } catch (Exception e) {
+            log.error("Error counting movements for product {}: {}", productId, e.getMessage());
+            return 0;
+        }
+    }
+
+    @Transactional
+    public void recordStockMovement(Long productId, String type, Integer quantity, String reason) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
+
+        if (quantity == null || quantity <= 0) {
+            throw new BadRequestException("Quantity must be greater than 0");
+        }
+
+        // Parse movement type
+        com.djbc.dutyfree.domain.enums.MovementType movementType;
+        try {
+            movementType = com.djbc.dutyfree.domain.enums.MovementType.valueOf(type.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Invalid movement type. Must be one of: IN, OUT, ADJUSTMENT");
+        }
+
+        // Create stock movement record
+        StockMovement movement = StockMovement.builder()
+                .product(product)
+                .type(movementType)
+                .quantity(quantity)
+                .notes(reason)
+                .movementDate(LocalDateTime.now())
+                .build();
+
+        stockMovementRepository.save(movement);
+
+        log.info("Stock movement recorded for product {}: {} {} units",
+                product.getSku(), movementType, quantity);
     }
 }

@@ -34,4 +34,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u WHERE LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
             "OR LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%'))")
     List<User> searchUsers(@Param("search") String search);
+
+    @Query(value = "SELECT username, password, role, active FROM users WHERE username = :username AND deleted = false", nativeQuery = true)
+    Optional<Object[]> findUserCredentialsByUsername(@Param("username") String username);
 }

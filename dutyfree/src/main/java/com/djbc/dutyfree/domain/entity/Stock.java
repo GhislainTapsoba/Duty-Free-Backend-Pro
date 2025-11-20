@@ -24,13 +24,13 @@ public class Stock extends BaseEntity {
     @JoinColumn(name = "sommier_id")
     private Sommier sommier;
 
-    @Column(nullable = false)
+    @Column(name = "quantity", nullable = false)  // ← EXPLICITE
     private Integer quantity = 0;
 
-    @Column(nullable = false)
+    @Column(name = "reserved_quantity", nullable = false)  // ← EXPLICITE
     private Integer reservedQuantity = 0;
 
-    @Column(nullable = false)
+    @Column(name = "available_quantity", nullable = false)  // ← EXPLICITE
     private Integer availableQuantity = 0;
 
     @Column(length = 100)

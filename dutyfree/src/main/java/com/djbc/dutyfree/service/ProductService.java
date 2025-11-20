@@ -50,6 +50,9 @@ public class ProductService {
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", request.getCategoryId()));
 
+        Category categoryname = categoryRepository.findById(Long.valueOf(request.getCategoryName()))
+                .orElseThrow(() -> new ResourceNotFoundException("Category", "name", request.getCategoryName()));
+
         Supplier supplier = null;
         if (request.getSupplierId() != null) {
             supplier = supplierRepository.findById(request.getSupplierId())
@@ -181,6 +184,13 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    public List<ProductResponse> getProductsByCategoryName(String categoryName) {
+        return productRepository.findByCategoryId(Long.valueOf(categoryName)).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public List<ProductResponse> getLowStockProducts() {
         return productRepository.findLowStockProducts().stream()
                 .map(this::mapToResponse)
@@ -236,5 +246,26 @@ public class ProductService {
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductResponse> getProductsCurrentStock() {
+        return productRepository.findAllActiveProducts().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductResponse> getProductsPriceXOF() {
+        return productRepository.findAllActiveProducts().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductResponse> getActiveProducts() {
+        return productRepository.findAllActiveProducts().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 }

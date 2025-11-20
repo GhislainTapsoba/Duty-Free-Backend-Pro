@@ -1,5 +1,7 @@
 package com.djbc.dutyfree.service;
 
+import com.djbc.dutyfree.domain.dto.request.CashRegisterRequest;
+import com.djbc.dutyfree.domain.dto.response.CashRegisterResponse;
 import com.djbc.dutyfree.domain.entity.CashRegister;
 import com.djbc.dutyfree.domain.entity.User;
 import com.djbc.dutyfree.exception.BadRequestException;
@@ -23,25 +25,25 @@ public class CashRegisterService {
     private final AuthService authService;
 
     @Transactional
-    public CashRegister createCashRegister(String registerNumber, String name, String location) {
-        if (cashRegisterRepository.existsByRegisterNumber(registerNumber)) {
-            throw new BadRequestException("Cash register with number " + registerNumber + " already exists");
+    public CashRegister createCashRegister(CashRegisterRequest request) {
+        if (cashRegisterRepository.existsByRegisterNumber(request.getRegisterNumber())) {
+            throw new BadRequestException("Cash register with number " + request.getRegisterNumber() + " already exists");
         }
 
         CashRegister cashRegister = CashRegister.builder()
-                .registerNumber(registerNumber)
-                .name(name)
-                .location(location)
-                .active(true)
-                .isOpen(false)
-                .openingBalance(BigDecimal.ZERO)
-                .closingBalance(BigDecimal.ZERO)
-                .expectedBalance(BigDecimal.ZERO)
-                .cashInDrawer(BigDecimal.ZERO)
+                .registerNumber(request.getRegisterNumber())
+                .name(request.getName())
+                .location(request.getLocation())
+                .active(request.getActive() != null ? request.getActive() : true)
+                .isOpen(request.getIsOpen() != null ? request.getIsOpen() : false)
+                .openingBalance(request.getOpeningBalance() != null ? request.getOpeningBalance() : BigDecimal.ZERO)
+                .closingBalance(request.getClosingBalance() != null ? request.getClosingBalance() : BigDecimal.ZERO)
+                .expectedBalance(request.getExpectedBalance() != null ? request.getExpectedBalance() : BigDecimal.ZERO)
+                .cashInDrawer(request.getCashInDrawer() != null ? request.getCashInDrawer() : BigDecimal.ZERO)
                 .build();
 
         cashRegister = cashRegisterRepository.save(cashRegister);
-        log.info("Cash register created: {}", registerNumber);
+        log.info("Cash register created: {}", request.getRegisterNumber());
 
         return cashRegister;
     }
@@ -138,7 +140,7 @@ public class CashRegisterService {
 
     @Transactional(readOnly = true)
     public List<CashRegister> getAllCashRegisters() {
-        return cashRegisterRepository.findByActiveTrue();
+        return cashRegisterRepository.findAllWithSalesAndUsers();
     }
 
     @Transactional(readOnly = true)
@@ -159,5 +161,25 @@ public class CashRegisterService {
         cashRegisterRepository.save(cashRegister);
 
         log.info("Cash register deactivated: {}", cashRegister.getRegisterNumber());
+    }
+
+    @Transactional
+    public CashRegisterResponse toResponse(CashRegister cashRegister) {
+        return CashRegisterResponse.builder()
+                .id(cashRegister.getId())
+                .registerNumber(cashRegister.getRegisterNumber())
+                .name(cashRegister.getName())
+                .location(cashRegister.getLocation())
+                .isOpen(cashRegister.getIsOpen())
+                .openingBalance(cashRegister.getOpeningBalance())
+                .closingBalance(cashRegister.getClosingBalance())
+                .expectedBalance(cashRegister.getExpectedBalance())
+                .cashInDrawer(cashRegister.getCashInDrawer())
+                .openedAt(cashRegister.getOpenedAt())
+                .openedByUsername(cashRegister.getOpenedBy() != null ? cashRegister.getOpenedBy().getUsername() : null)
+                .closedAt(cashRegister.getClosedAt())
+                .closedByUsername(cashRegister.getClosedBy() != null ? cashRegister.getClosedBy().getUsername() : null)
+                .active(cashRegister.getActive())
+                .build();
     }
 }

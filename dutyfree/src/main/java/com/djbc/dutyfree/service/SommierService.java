@@ -7,12 +7,11 @@ import com.djbc.dutyfree.exception.ResourceNotFoundException;
 import com.djbc.dutyfree.repository.SommierRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -24,123 +23,116 @@ public class SommierService {
 
     @Transactional
     public Sommier createSommier(String sommierNumber, BigDecimal initialValue, String notes) {
-        if (sommierRepository.existsBySommierNumber(sommierNumber)) {
-            throw new BadRequestException("Sommier with number " + sommierNumber + " already exists");
+        // Vérifier si le numéro existe déjà
+        if (sommierRepository.findBySommierNumber(sommierNumber).isPresent()) {
+            throw new BadRequestException("Sommier number already exists: " + sommierNumber);
+        }
+
+        if (initialValue == null || initialValue.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Initial value must be positive");
         }
 
         Sommier sommier = Sommier.builder()
                 .sommierNumber(sommierNumber)
-                .openingDate(LocalDate.now())
-                .initialValue(initialValue)
                 .currentValue(initialValue)
                 .clearedValue(BigDecimal.ZERO)
                 .status(SommierStatus.ACTIVE)
                 .notes(notes)
-                .alertSent(false)
                 .build();
 
-        // Set alert date (90 days from opening)
-        sommier.setAlertDate(LocalDate.now().plusDays(90));
-
         sommier = sommierRepository.save(sommier);
-        log.info("Sommier created: {}", sommierNumber);
-
+        log.info("Created sommier: {}", sommierNumber);
+        
         return sommier;
     }
 
     @Transactional
     public Sommier updateSommierValue(Long sommierId, BigDecimal clearedAmount) {
-        Sommier sommier = sommierRepository.findById(sommierId)
-                .orElseThrow(() -> new ResourceNotFoundException("Sommier", "id", sommierId));
+        Sommier sommier = getSommierById(sommierId);
 
-        if (sommier.getStatus() == SommierStatus.CLEARED) {
-            throw new BadRequestException("Cannot update cleared sommier");
+        if (clearedAmount == null || clearedAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Cleared amount must be positive");
         }
 
-        BigDecimal newClearedValue = sommier.getClearedValue().add(clearedAmount);
-
-        if (newClearedValue.compareTo(sommier.getInitialValue()) > 0) {
-            throw new BadRequestException("Cleared value cannot exceed initial value");
+        if (sommier.getStatus() != SommierStatus.ACTIVE) {
+            throw new BadRequestException("Can only update value of active sommier");
         }
 
-        sommier.setClearedValue(newClearedValue);
-        sommier.setCurrentValue(sommier.getInitialValue().subtract(newClearedValue));
+        sommier.setClearedValue(sommier.getClearedValue().add(clearedAmount));
+        sommier.setCurrentValue(sommier.getCurrentValue().subtract(clearedAmount));
 
-        // Update status based on cleared value
-        if (newClearedValue.compareTo(sommier.getInitialValue()) == 0) {
-            sommier.setStatus(SommierStatus.CLEARED);
-            sommier.setClosingDate(LocalDate.now());
-            log.info("Sommier fully cleared: {}", sommier.getSommierNumber());
-        } else if (newClearedValue.compareTo(BigDecimal.ZERO) > 0) {
-            sommier.setStatus(SommierStatus.PARTIALLY_CLEARED);
+        if (sommier.getCurrentValue().compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Cleared amount exceeds current value");
         }
 
         sommier = sommierRepository.save(sommier);
+        
+        log.info("Updated sommier {} value. Cleared: {}, Remaining: {}", 
+                sommier.getSommierNumber(), clearedAmount, sommier.getCurrentValue());
+        
         return sommier;
     }
 
     @Transactional
     public Sommier closeSommier(Long sommierId) {
-        Sommier sommier = sommierRepository.findById(sommierId)
-                .orElseThrow(() -> new ResourceNotFoundException("Sommier", "id", sommierId));
+        Sommier sommier = getSommierById(sommierId);
 
-        if (sommier.getStatus() == SommierStatus.CLEARED) {
-            throw new BadRequestException("Sommier already cleared");
+        if (sommier.getStatus() != SommierStatus.ACTIVE) {
+            throw new BadRequestException("Sommier is not active");
         }
 
         sommier.setStatus(SommierStatus.CLEARED);
-        sommier.setClosingDate(LocalDate.now());
-        sommier = sommierRepository.save(sommier);
 
-        log.info("Sommier closed: {}", sommier.getSommierNumber());
+        sommier = sommierRepository.save(sommier);
+        log.info("Closed sommier: {}", sommier.getSommierNumber());
+        
         return sommier;
     }
 
     @Transactional(readOnly = true)
     public Sommier getSommierById(Long id) {
-        return sommierRepository.findByIdWithStocks(id)
+        return sommierRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sommier", "id", id));
     }
 
     @Transactional(readOnly = true)
     public Sommier getSommierByNumber(String sommierNumber) {
         return sommierRepository.findBySommierNumber(sommierNumber)
-                .orElseThrow(() -> new ResourceNotFoundException("Sommier", "sommierNumber", sommierNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Sommier", "number", sommierNumber));
     }
 
     @Transactional(readOnly = true)
-    public List<Sommier> getActiveSommiers() {
-        return sommierRepository.findActiveSommiersByStatus(SommierStatus.ACTIVE);
-    }
-
-    @Transactional(readOnly = true)
-    public List<Sommier> getSommiersByStatus(SommierStatus status) {
-        return sommierRepository.findActiveSommiersByStatus(status);
-    }
-
-    @Transactional(readOnly = true)
-    public List<Sommier> getSommiersNeedingAlert() {
-        return sommierRepository.findSommiersNeedingAlert(LocalDate.now());
-    }
-
-    @Transactional
-    @Scheduled(cron = "0 0 9 * * *") // Every day at 9 AM
-    public void checkSommierAlerts() {
-        List<Sommier> sommiers = getSommiersNeedingAlert();
-
-        for (Sommier sommier : sommiers) {
-            // TODO: Send alert notification (email, SMS, etc.)
-            log.warn("Alert: Sommier {} needs clearing. Days since opening: {}",
-                    sommier.getSommierNumber(),
-                    LocalDate.now().toEpochDay() - sommier.getOpeningDate().toEpochDay());
-
-            sommier.setAlertSent(true);
-            sommierRepository.save(sommier);
+    public List<Sommier> getAllSommiers() {
+        log.info("Fetching all sommiers");
+        try {
+            List<Sommier> sommiers = sommierRepository.findAll();
+            log.info("Found {} sommiers", sommiers != null ? sommiers.size() : 0);
+            return sommiers != null ? sommiers : List.of();
+        } catch (Exception e) {
+            log.error("Error fetching all sommiers", e);
+            throw e;
         }
     }
 
     @Transactional(readOnly = true)
+    public List<Sommier> getActiveSommiers() {
+        return sommierRepository.findByStatus(SommierStatus.ACTIVE);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Sommier> getSommiersByStatus(SommierStatus status) {
+        return sommierRepository.findByStatus(status);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Sommier> getSommiersNeedingAlert() {
+        // Par exemple, les sommiers actifs avec une valeur élevée qui n'ont pas été mis à jour récemment
+        BigDecimal alertThreshold = new BigDecimal("10000.00");
+        return sommierRepository.findByStatusAndCurrentValueGreaterThan(SommierStatus.ACTIVE, alertThreshold);
+    }
+
+    @Transactional(readOnly = true)
     public Long countActiveSommiers() {
-        return sommierRepository.countActiveSommiers();
+        return sommierRepository.countByStatus(SommierStatus.ACTIVE);
     }
 }

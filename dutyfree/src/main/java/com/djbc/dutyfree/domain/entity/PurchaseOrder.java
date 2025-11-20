@@ -1,6 +1,7 @@
 package com.djbc.dutyfree.domain.entity;
 
 import com.djbc.dutyfree.domain.enums.OrderStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,6 +22,7 @@ public class PurchaseOrder extends BaseEntity {
     @Column(nullable = false, unique = true, length = 50)
     private String orderNumber;
 
+    @JsonIgnore  // ← AJOUTEZ CETTE LIGNE
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "supplier_id", nullable = false)
     private Supplier supplier;
@@ -54,9 +56,23 @@ public class PurchaseOrder extends BaseEntity {
     @Column(length = 1000)
     private String notes;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "purchaseOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PurchaseOrderItem> items = new ArrayList<>();
 
+    @JsonIgnore
     @OneToOne(mappedBy = "purchaseOrder")
     private Sommier sommier;
+    
+    // Méthode pour exposer l'ID du supplier au frontend
+    @Transient
+    public Long getSupplierId() {
+        return supplier != null ? supplier.getId() : null;
+    }
+    
+    // Méthode pour exposer le nom du supplier au frontend
+    @Transient
+    public String getSupplierName() {
+        return supplier != null ? supplier.getName() : null;
+    }
 }

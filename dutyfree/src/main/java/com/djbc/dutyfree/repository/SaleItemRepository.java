@@ -12,9 +12,13 @@ import java.util.List;
 @Repository
 public interface SaleItemRepository extends JpaRepository<SaleItem, Long> {
 
-    List<SaleItem> findBySaleId(Long saleId);
+    // ✅ CORRIGÉ : Utilisation de JPQL
+    @Query("SELECT si FROM SaleItem si WHERE si.sale.id = :saleId")
+    List<SaleItem> findBySaleId(@Param("saleId") Long saleId);
 
-    List<SaleItem> findByProductId(Long productId);
+    // ✅ CORRIGÉ : Utilisation de JPQL
+    @Query("SELECT si FROM SaleItem si WHERE si.product.id = :productId")
+    List<SaleItem> findByProductId(@Param("productId") Long productId);
 
     @Query("SELECT si FROM SaleItem si WHERE si.sale.id = :saleId AND si.deleted = false")
     List<SaleItem> findActiveBySaleId(@Param("saleId") Long saleId);

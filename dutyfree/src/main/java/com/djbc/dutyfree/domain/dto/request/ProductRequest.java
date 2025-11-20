@@ -31,6 +31,9 @@ public class ProductRequest {
     @NotNull(message = "Category is required")
     private Long categoryId;
 
+    @NotNull(message = "Category is required")
+    private String CategoryName;
+
     private Long supplierId;
 
     @NotNull(message = "Purchase price is required")

@@ -237,7 +237,7 @@ public class PurchaseOrderService {
 
     @Transactional(readOnly = true)
     public List<PurchaseOrder> getOrdersBySupplier(Long supplierId) {
-        return purchaseOrderRepository.findBySupplierId(supplierId);
+        return purchaseOrderRepository.findBySupplier_Id(supplierId);
     }
 
     @Transactional(readOnly = true)
@@ -248,6 +248,11 @@ public class PurchaseOrderService {
     @Transactional(readOnly = true)
     public List<PurchaseOrder> getOverdueOrders() {
         return purchaseOrderRepository.findOverdueOrders(LocalDate.now());
+    }
+
+    @Transactional(readOnly = true)
+    public List<PurchaseOrder> getAllPurchaseOrders() {
+        return purchaseOrderRepository.findAllActive();
     }
 
     private String generateOrderNumber() {

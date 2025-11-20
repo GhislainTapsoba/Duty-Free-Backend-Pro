@@ -15,8 +15,13 @@ spring:
       hibernate:
         format_sql: true
         use_sql_comments: true
+        enable_lazy_load_no_trans: true
     hibernate:
       ddl-auto: update
+  jackson:
+    serialization:
+      fail-on-empty-beans: false
+    default-property-inclusion: non_null
   servlet:
     multipart:
       max-file-size: 10MB
@@ -28,3 +33,15 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
   packages-to-scan: com.djbc.dutyfree.controller
+
+# Application-specific configuration
+app:
+  receipts:
+    storage-path: ${RECEIPTS_STORAGE_PATH:./data/receipts}
+  reports:
+    storage-path: ${REPORTS_STORAGE_PATH:./data/reports}
+  backup:
+    storage-path: ${BACKUP_STORAGE_PATH:./data/backups}
+    retention-days: 30
+    schedule: ${BACKUP_SCHEDULE:0 0 2 * * *}  # Daily at 2:00 AM
+    cleanup-schedule: ${BACKUP_CLEANUP_SCHEDULE:0 0 3 * * *}  # Daily at 3:00 AM

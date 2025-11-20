@@ -2,18 +2,23 @@ package com.djbc.dutyfree.service;
 
 import com.djbc.dutyfree.domain.entity.Receipt;
 import com.djbc.dutyfree.domain.entity.Sale;
-import com.djbc.dutyfree.domain.entity.SaleItem;
-import com.djbc.dutyfree.exception.ResourceNotFoundException;
+import com.djbc.dutyfree.domain.entity.Settings;
 import com.djbc.dutyfree.repository.ReceiptRepository;
 import com.djbc.dutyfree.repository.SaleRepository;
+import com.djbc.dutyfree.repository.SettingsRepository;
+import com.djbc.dutyfree.util.ReceiptGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.math.BigDecimal;
 
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -22,69 +27,58 @@ public class ReceiptService {
 
     private final ReceiptRepository receiptRepository;
     private final SaleRepository saleRepository;
+    private final SettingsRepository settingsRepository;
+    private final ReceiptGenerator receiptGenerator;
+
+    @Value("${app.receipts.storage-path:./receipts}")
+    private String receiptsStoragePath;
 
     @Transactional
     public Receipt generateReceipt(Long saleId) {
-        Sale sale = saleRepository.findByIdWithDetails(saleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", saleId));
+        log.info("Generating receipt for sale ID: {}", saleId);
 
-        // Check if receipt already exists
-        if (sale.getReceipt() != null) {
-            return sale.getReceipt();
-        }
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new RuntimeException("Sale not found with ID: " + saleId));
 
+        // Create receipt number
         String receiptNumber = generateReceiptNumber();
-        String receiptContent = buildReceiptContent(sale);
 
+        // Create receipt entity
         Receipt receipt = Receipt.builder()
-                .sale(sale)
                 .receiptNumber(receiptNumber)
+                .sale(sale)
                 .printedDate(LocalDateTime.now())
-                .receiptContent(receiptContent)
                 .printed(false)
                 .emailed(false)
-                .headerMessage("Bienvenue - Welcome")
-                .footerMessage("Merci pour votre visite - Thank you for your visit")
                 .build();
 
-        receipt = receiptRepository.save(receipt);
-        log.info("Receipt generated: {}", receiptNumber);
-
-        return receipt;
-    }
-
-    @Transactional
-    public Receipt printReceipt(Long receiptId) {
-        Receipt receipt = receiptRepository.findById(receiptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt", "id", receiptId));
-
-        receipt.setPrinted(true);
+        // Save receipt first to get ID
         receipt = receiptRepository.save(receipt);
 
-        log.info("Receipt printed: {}", receipt.getReceiptNumber());
-        return receipt;
-    }
+        try {
+            // Fetch company settings
+            Map<String, String> companySettings = fetchCompanySettings();
 
-    @Transactional
-    public Receipt emailReceipt(Long receiptId, String emailAddress) {
-        Receipt receipt = receiptRepository.findById(receiptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt", "id", receiptId));
+            // Generate text content for receipt (for thermal printer)
+            String receiptText = receiptGenerator.generateReceiptText(sale, receiptNumber);
+            receipt.setReceiptContent(receiptText);
 
-        // TODO: Implement email sending logic
+            // Generate PDF
+            String pdfFileName = generatePdfFileName(receipt);
+            String pdfPath = Paths.get(receiptsStoragePath, pdfFileName).toString();
 
-        receipt.setEmailed(true);
-        receipt.setEmailAddress(emailAddress);
-        receipt.setEmailedDate(LocalDateTime.now());
-        receipt = receiptRepository.save(receipt);
+            String generatedPath = receiptGenerator.generatePDF(receipt, companySettings, pdfPath);
+            receipt.setPdfPath(generatedPath);
 
-        log.info("Receipt emailed to {}: {}", emailAddress, receipt.getReceiptNumber());
-        return receipt;
-    }
+            log.info("Receipt generated successfully: {} with PDF at: {}", receiptNumber, generatedPath);
 
-    @Transactional(readOnly = true)
-    public Receipt getReceiptBySale(Long saleId) {
-        return receiptRepository.findBySaleId(saleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found for sale: " + saleId));
+        } catch (Exception e) {
+            log.error("Error generating PDF receipt for sale {}: {}", saleId, e.getMessage(), e);
+            // Continue without PDF - text receipt is still available
+            receipt.setReceiptContent(receiptGenerator.generateReceiptText(sale, receiptNumber));
+        }
+
+        return receiptRepository.save(receipt);
     }
 
     private String generateReceiptNumber() {
@@ -94,57 +88,58 @@ public class ReceiptService {
         return prefix + String.format("%06d", count);
     }
 
-    private String buildReceiptContent(Sale sale) {
-        StringBuilder content = new StringBuilder();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+    private String generatePdfFileName(Receipt receipt) {
+        LocalDateTime now = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+        return String.format("receipt_%s_%s.pdf",
+                receipt.getReceiptNumber().replace("/", "_"),
+                now.format(formatter));
+    }
 
-        // Header
-        content.append("=====================================\n");
-        content.append("    DUTY FREE - AEROPORT DE OUA\n");
-        content.append("=====================================\n");
-        content.append("Date: ").append(sale.getSaleDate().format(formatter)).append("\n");
-        content.append("Ticket N°: ").append(sale.getSaleNumber()).append("\n");
-        content.append("Receipt N°: ").append(sale.getReceipt() != null ?
-                sale.getReceipt().getReceiptNumber() : "N/A").append("\n");
-        content.append("Cashier: ").append(sale.getCashier().getFullName()).append("\n");
-        content.append("Register: ").append(sale.getCashRegister().getRegisterNumber()).append("\n");
-        content.append("-------------------------------------\n");
+    private Map<String, String> fetchCompanySettings() {
+        Map<String, String> settings = new HashMap<>();
 
-        // Items
-        for (SaleItem item : sale.getItems()) {
-            content.append(item.getProduct().getNameFr()).append("\n");
-            content.append("  ").append(item.getQuantity()).append(" x ")
-                    .append(String.format("%,.0f", item.getUnitPrice())).append(" FCFA\n");
-            if (item.getDiscount().compareTo(BigDecimal.ZERO) > 0) {
-                content.append("  Discount: -").append(String.format("%,.0f", item.getDiscount())).append(" FCFA\n");
-            }
-            content.append("  Total: ").append(String.format("%,.0f", item.getTotalPrice())).append(" FCFA\n");
+        // Fetch all company and general settings
+        List<Settings> companySettings = settingsRepository.findByCategory("company");
+        List<Settings> generalSettings = settingsRepository.findByCategory("general");
+
+        // Add company settings
+        for (Settings setting : companySettings) {
+            settings.put(setting.getKey(), setting.getValue());
         }
 
-        content.append("-------------------------------------\n");
-
-        // Totals
-        content.append("Subtotal: ").append(String.format("%,.0f", sale.getSubtotal())).append(" FCFA\n");
-        if (sale.getDiscount().compareTo(BigDecimal.ZERO) > 0) {
-            content.append("Discount: -").append(String.format("%,.0f", sale.getDiscount())).append(" FCFA\n");
+        // Add general settings
+        for (Settings setting : generalSettings) {
+            settings.put(setting.getKey(), setting.getValue());
         }
-        content.append("Tax: ").append(String.format("%,.0f", sale.getTaxAmount())).append(" FCFA\n");
-        content.append("TOTAL TTC: ").append(String.format("%,.0f", sale.getTotalAmount())).append(" FCFA\n");
-        content.append("-------------------------------------\n");
 
-        // Payments
-        content.append("PAYMENTS:\n");
-        sale.getPayments().forEach(payment -> {
-            content.append(payment.getPaymentMethod()).append(": ")
-                    .append(String.format("%,.0f", payment.getAmountInXOF())).append(" FCFA\n");
-        });
+        // Set defaults if not found
+        settings.putIfAbsent("companyName", "DJBC DUTY FREE");
+        settings.putIfAbsent("companyAddress", "Aéroport International de Ouagadougou");
+        settings.putIfAbsent("companyPhone", "+226 XX XX XX XX");
+        settings.putIfAbsent("companyEmail", "contact@djbc-dutyfree.bf");
+        settings.putIfAbsent("ifu", "00000000000000");
+        settings.putIfAbsent("rccm", "BF-OUA-XXXXXX");
+        settings.putIfAbsent("customsNumber", "XXXX/DGD/XX");
 
-        // Footer
-        content.append("=====================================\n");
-        content.append("   Merci - Thank you\n");
-        content.append("   Au revoir - Goodbye\n");
-        content.append("=====================================\n");
+        return settings;
+    }
 
-        return content.toString();
+    /**
+     * Get receipt by ID
+     */
+    public Receipt getReceiptById(Long id) {
+        return receiptRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Receipt not found with ID: " + id));
+    }
+
+    /**
+     * Find receipt by sale ID
+     */
+    public Receipt findBySaleId(Long saleId) {
+        return receiptRepository.findAll().stream()
+                .filter(r -> r.getSale().getId().equals(saleId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Receipt not found for sale ID: " + saleId));
     }
 }

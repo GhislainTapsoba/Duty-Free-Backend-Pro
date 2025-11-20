@@ -23,11 +23,17 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
 
     List<Sale> findByStatus(SaleStatus status);
 
-    List<Sale> findByCashierId(Long cashierId);
+    // ✅ CORRIGÉ : Utilisation de JPQL
+    @Query("SELECT s FROM Sale s WHERE s.cashier.id = :cashierId")
+    List<Sale> findByCashierId(@Param("cashierId") Long cashierId);
 
-    List<Sale> findByCustomerId(Long customerId);
+    // ✅ CORRIGÉ : Utilisation de JPQL
+    @Query("SELECT s FROM Sale s WHERE s.customer.id = :customerId")
+    List<Sale> findByCustomerId(@Param("customerId") Long customerId);
 
-    List<Sale> findByCashRegisterId(Long cashRegisterId);
+    // ✅ CORRIGÉ : Utilisation de JPQL
+    @Query("SELECT s FROM Sale s WHERE s.cashRegister.id = :cashRegisterId")
+    List<Sale> findByCashRegisterId(@Param("cashRegisterId") Long cashRegisterId);
 
     @Query("SELECT s FROM Sale s WHERE s.saleDate BETWEEN :startDate AND :endDate " +
             "AND s.deleted = false ORDER BY s.saleDate DESC")
@@ -67,4 +73,10 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
     List<Sale> findByCashRegisterAndDateBetween(@Param("cashRegisterId") Long cashRegisterId,
                                                 @Param("startDate") LocalDateTime startDate,
                                                 @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT s FROM Sale s WHERE s.saleDate BETWEEN :startDate AND :endDate " +
+            "AND s.status = :status AND s.deleted = false ORDER BY s.saleDate DESC")
+    List<Sale> findBySaleDateBetweenAndStatus(@Param("startDate") LocalDateTime startDate,
+                                              @Param("endDate") LocalDateTime endDate,
+                                              @Param("status") SaleStatus status);
 }

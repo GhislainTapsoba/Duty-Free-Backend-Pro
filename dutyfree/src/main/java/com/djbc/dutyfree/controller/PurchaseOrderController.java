@@ -105,4 +105,11 @@ public class PurchaseOrderController {
         List<PurchaseOrder> orders = purchaseOrderService.getOverdueOrders();
         return ResponseEntity.ok(ApiResponse.success(orders));
     }
+
+    @GetMapping
+    @Operation(summary = "Get all purchase orders", description = "Get all purchase orders")
+    public ResponseEntity<ApiResponse<List<PurchaseOrder>>> getAllPurchaseOrders() {
+        List<PurchaseOrder> orders = purchaseOrderService.getAllPurchaseOrders();
+        return ResponseEntity.ok(ApiResponse.success(orders));
+    }
 }

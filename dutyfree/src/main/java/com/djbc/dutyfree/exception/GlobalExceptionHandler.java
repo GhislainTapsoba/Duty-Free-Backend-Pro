@@ -104,9 +104,46 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
     }
 
+    @ExceptionHandler(com.fasterxml.jackson.databind.JsonMappingException.class)
+    public ResponseEntity<ApiResponse<Void>> handleJsonMappingException(
+            com.fasterxml.jackson.databind.JsonMappingException ex, WebRequest request) {
+
+        if (ex.getMessage() != null && ex.getMessage().contains("could not initialize proxy")) {
+            ApiResponse<Void> response = ApiResponse.<Void>builder()
+                    .success(false)
+                    .error("User not authenticated")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+        }
+
+        ApiResponse<Void> response = ApiResponse.<Void>builder()
+                .success(false)
+                .error("Serialization error")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGlobalException(
             Exception ex, WebRequest request) {
+
+        // Log the full exception for debugging
+        ex.printStackTrace();
+        System.err.println("=== EXCEPTION CAUGHT ===");
+        System.err.println("Message: " + ex.getMessage());
+        System.err.println("Type: " + ex.getClass().getName());
+
+        if (ex.getMessage() != null && ex.getMessage().contains("could not initialize proxy")) {
+            ApiResponse<Void> response = ApiResponse.<Void>builder()
+                    .success(false)
+                    .error("User not authenticated")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+        }
 
         ApiResponse<Void> response = ApiResponse.<Void>builder()
                 .success(false)

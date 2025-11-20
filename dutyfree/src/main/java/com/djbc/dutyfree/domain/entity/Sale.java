@@ -1,6 +1,7 @@
 package com.djbc.dutyfree.domain.entity;
 
 import com.djbc.dutyfree.domain.enums.SaleStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;  // ← AJOUTEZ
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -27,14 +28,17 @@ public class Sale extends BaseEntity {
     @Column(nullable = false)
     private LocalDateTime saleDate;
 
+    @JsonIgnore  // ← AJOUTEZ
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cashier_id", nullable = false)
     private User cashier;
 
+    @JsonIgnore  // ← AJOUTEZ
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
     private Customer customer;
 
+    @JsonIgnore  // ← AJOUTEZ
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cash_register_id", nullable = false)
     private CashRegister cashRegister;
@@ -58,12 +62,15 @@ public class Sale extends BaseEntity {
     @Column(length = 1000)
     private String notes;
 
+    @JsonIgnore  // ← AJOUTEZ
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SaleItem> items = new ArrayList<>();
 
+    @JsonIgnore  // ← AJOUTEZ
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Payment> payments = new ArrayList<>();
 
+    @JsonIgnore  // ← AJOUTEZ
     @OneToOne(mappedBy = "sale", cascade = CascadeType.ALL)
     private Receipt receipt;
 
@@ -79,4 +86,20 @@ public class Sale extends BaseEntity {
 
     @Column(length = 100)
     private String destination;
+    
+    // Méthodes @Transient pour exposer les IDs au frontend
+    @Transient
+    public Long getCashierId() {
+        return cashier != null ? cashier.getId() : null;
+    }
+    
+    @Transient
+    public Long getCustomerId() {
+        return customer != null ? customer.getId() : null;
+    }
+    
+    @Transient
+    public Long getCashRegisterId() {
+        return cashRegister != null ? cashRegister.getId() : null;
+    }
 }

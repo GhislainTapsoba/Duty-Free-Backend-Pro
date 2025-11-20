@@ -19,6 +19,9 @@ import java.util.List;
 @Builder
 public class Product extends BaseEntity {
 
+    @Column(name = "product_code", nullable = false, unique = true, length = 100)
+    private String productCode;
+
     @Column(nullable = false, unique = true, length = 100)
     private String sku;
 
@@ -80,4 +83,18 @@ public class Product extends BaseEntity {
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
     private List<Stock> stocks = new ArrayList<>();
+
+    /**
+     * Helper method to get product name (returns French name by default)
+     */
+    public String getName() {
+        return this.nameFr;
+    }
+
+    /**
+     * Alias for sellingPriceXOF
+     */
+    public BigDecimal getPriceXOF() {
+        return this.sellingPriceXOF;
+    }
 }

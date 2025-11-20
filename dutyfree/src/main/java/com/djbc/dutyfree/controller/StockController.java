@@ -1,6 +1,7 @@
 package com.djbc.dutyfree.controller;
 
 import com.djbc.dutyfree.domain.dto.response.ApiResponse;
+import com.djbc.dutyfree.domain.dto.response.StockMovementResponse;
 import com.djbc.dutyfree.domain.entity.Stock;
 import com.djbc.dutyfree.service.StockService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -109,5 +110,45 @@ public class StockController {
             @RequestParam(value = "threshold", defaultValue = "10") int threshold) {
         List<Stock> lowStocks = stockService.getLowStock(threshold);
         return ResponseEntity.ok(ApiResponse.success(lowStocks));
+    }
+
+    @PostMapping("/movements")
+    @Operation(summary = "Record stock movement", description = "Manually record a stock movement (entry, exit, adjustment)")
+    public ResponseEntity<ApiResponse<Void>> recordStockMovement(
+            @RequestParam Long productId,
+            @RequestParam String type,
+            @RequestParam Integer quantity,
+            @RequestParam(required = false) String reason) {
+        stockService.recordStockMovement(productId, type, quantity, reason);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Stock movement recorded successfully", null));
+    }
+
+    @GetMapping("/movements")
+    @Operation(summary = "Get stock movements", description = "List all stock movements (entries, adjustments, sales, etc.)")
+    public ResponseEntity<ApiResponse<List<StockMovementResponse>>> getStockMovements() {
+        try {
+            List<StockMovementResponse> movements = stockService.getStockMovements();
+            return ResponseEntity.ok(ApiResponse.success("Stock movements retrieved successfully", movements));
+        } catch (Exception e) {
+            // Log l'erreur côté serveur
+            e.printStackTrace(); // ou log.error("Error fetching stock movements", e) si tu utilises un logger
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Impossible de récupérer les mouvements de stock: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/movements/{productId}")
+    @Operation(summary = "Get stock movements by product", description = "List stock movements for a specific product")
+    public ResponseEntity<ApiResponse<List<StockMovementResponse>>> getStockMovementsByProduct(@PathVariable Long productId) {
+        List<StockMovementResponse> movements = stockService.getStockMovementsByProductId(productId);
+        return ResponseEntity.ok(ApiResponse.success(movements));
+    }
+
+    @GetMapping("/movements/{productId}/total")
+    @Operation(summary = "Get total stock movements by product", description = "Get total stock movements for a specific product")
+    public ResponseEntity<ApiResponse<Integer>> getTotalStockMovementsByProduct(@PathVariable Long productId) {
+        Integer total = stockService.getTotalStockMovementsByProduct(productId);
+        return ResponseEntity.ok(ApiResponse.success(total));
     }
 }

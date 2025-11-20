@@ -62,7 +62,7 @@ public class AuthService {
                     .username(user.getUsername())
                     .fullName(user.getFullName())
                     .role(user.getRole())
-                    .cashRegisterId(null)  // Temporairement null pour tester
+                    .cashRegisterId(user.getCashRegisterId())  // ✅ CHANGEMENT ICI : utilise la nouvelle méthode
                     .build();
 
         } catch (org.springframework.security.authentication.BadCredentialsException e) {
@@ -78,13 +78,64 @@ public class AuthService {
     }
 
     public User getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+                throw new BadRequestException("No authenticated user found");
+            }
+            String username = authentication.getName();
+            User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+            
+            // Initialize lazy fields to avoid serialization issues
+            if (user.getAssignedCashRegister() != null) {
+                user.getAssignedCashRegister().getId(); // Force initialization
+            }
+            
+            return user;
+        } catch (Exception e) {
+            log.error("Error getting current user: {}", e.getMessage());
+            throw new BadRequestException("Unable to get current user: " + e.getMessage());
+        }
     }
 
     public Long getCurrentUserId() {
         return getCurrentUser().getId();
+    }
+    
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Object> getCurrentUserDto() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+                throw new BadRequestException("No authenticated user found");
+            }
+            String username = authentication.getName();
+            
+            // Use a direct query to avoid lazy loading issues
+            var userOpt = userRepository.findByUsername(username);
+            if (userOpt.isEmpty()) {
+                throw new ResourceNotFoundException("User not found");
+            }
+            
+            User user = userOpt.get();
+            
+            // Create a safe DTO manually without accessing lazy fields
+            var userMap = new java.util.HashMap<String, Object>();
+            userMap.put("id", user.getId());
+            userMap.put("username", user.getUsername());
+            userMap.put("fullName", user.getFullName());
+            userMap.put("email", user.getEmail() != null ? user.getEmail() : "");
+            userMap.put("phone", user.getPhone() != null ? user.getPhone() : "");
+            userMap.put("role", user.getRole().toString());
+            userMap.put("active", user.getActive());
+            userMap.put("lastLogin", user.getLastLogin() != null ? user.getLastLogin().toString() : null);
+            userMap.put("cashRegisterId", user.getCashRegisterId()); // ✅ CHANGEMENT ICI : utilise la nouvelle méthode
+            
+            return userMap;
+        } catch (Exception e) {
+            log.error("Error getting current user DTO: {}", e.getMessage(), e);
+            throw new BadRequestException("Unable to get current user: " + e.getMessage());
+        }
     }
 }

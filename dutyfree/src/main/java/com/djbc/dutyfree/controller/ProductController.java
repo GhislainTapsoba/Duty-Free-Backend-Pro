@@ -90,6 +90,13 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success(products));
     }
 
+    @GetMapping("/category/{categoryName}")
+    @Operation(summary = "Get products by categoryName", description = "Get all products in a category")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getProductsByCategoryNamResponseEntity(@PathVariable String categoryName) {
+        List<ProductResponse> products = productService.getProductsByCategoryName(categoryName);
+        return ResponseEntity.ok(ApiResponse.success(products));
+    }
+
     @GetMapping("/low-stock")
     @PreAuthorize("hasAnyRole('ADMIN', 'STOCK_MANAGER')")
     @Operation(summary = "Get low stock products", description = "Get products with low stock levels")
@@ -112,5 +119,26 @@ public class ProductController {
     public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);
         return ResponseEntity.ok(ApiResponse.success("Product deleted successfully", null));
+    }
+
+    @GetMapping("currentStock")
+    @Operation(summary = "Get current stock for all products", description = "Get current stock levels for all products")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getProductsCurrentStock() {
+        List<ProductResponse> products = productService.getProductsCurrentStock();
+        return ResponseEntity.ok(ApiResponse.success(products));
+    }
+
+    @GetMapping("priceXOF")
+    @Operation(summary = "Get products with price in XOF", description = "Get all products with their price in XOF")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getProductsPriceXOF() {
+        List<ProductResponse> products = productService.getProductsPriceXOF();
+        return ResponseEntity.ok(ApiResponse.success(products));
+    }
+
+    @GetMapping("active")
+    @Operation(summary = "Get active products", description = "Get all active products")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getActiveProducts() {
+        List<ProductResponse> products = productService.getActiveProducts();
+        return ResponseEntity.ok(ApiResponse.success(products));
     }
 }

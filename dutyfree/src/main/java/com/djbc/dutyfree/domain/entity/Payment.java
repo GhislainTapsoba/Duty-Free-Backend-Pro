@@ -2,6 +2,7 @@ package com.djbc.dutyfree.domain.entity;
 
 import com.djbc.dutyfree.domain.enums.Currency;
 import com.djbc.dutyfree.domain.enums.PaymentMethod;
+import com.fasterxml.jackson.annotation.JsonIgnore;  // ← AJOUTEZ CETTE LIGNE
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 @Builder
 public class Payment extends BaseEntity {
 
+    @JsonIgnore  // ← AJOUTEZ CETTE LIGNE
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sale_id", nullable = false)
     private Sale sale;
@@ -33,7 +35,7 @@ public class Payment extends BaseEntity {
     private BigDecimal amountInCurrency;
 
     @Column(name = "amount_in_xof", nullable = false, precision = 19, scale = 2)
-    private BigDecimal amountInXOF;  // 👈 GARDÉ EN MAJUSCULES
+    private BigDecimal amountInXOF;
 
     @Column(name = "exchange_rate", precision = 10, scale = 6)
     private BigDecimal exchangeRate;
@@ -61,4 +63,10 @@ public class Payment extends BaseEntity {
 
     @Column(nullable = false)
     private Boolean verified = false;
+    
+    // ← SI BESOIN, ajoutez un champ saleId pour le frontend
+    @Transient
+    public Long getSaleId() {
+        return sale != null ? sale.getId() : null;
+    }
 }

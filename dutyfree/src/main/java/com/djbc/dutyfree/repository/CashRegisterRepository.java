@@ -26,4 +26,11 @@ public interface CashRegisterRepository extends JpaRepository<CashRegister, Long
 
     @Query("SELECT cr FROM CashRegister cr LEFT JOIN FETCH cr.sales WHERE cr.id = :id")
     Optional<CashRegister> findByIdWithSales(@Param("id") Long id);
+
+    @Query("SELECT cr FROM CashRegister cr " +
+       "LEFT JOIN FETCH cr.sales " +
+       "LEFT JOIN FETCH cr.openedBy " +
+       "LEFT JOIN FETCH cr.closedBy")
+    List<CashRegister> findAllWithSalesAndUsers();
+
 }

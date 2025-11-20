@@ -8,6 +8,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "cash_registers")
 @Getter
@@ -38,10 +40,12 @@ public class CashRegister extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "opened_by_user_id")
+    @JsonIgnore
     private User openedBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "closed_by_user_id")
+    @JsonIgnore
     private User closedBy;
 
     @Column(precision = 19, scale = 2)
@@ -56,7 +60,8 @@ public class CashRegister extends BaseEntity {
     @Column(precision = 19, scale = 2)
     private BigDecimal cashInDrawer = BigDecimal.ZERO;
 
-    @OneToMany(mappedBy = "cashRegister", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "cashRegister", fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Sale> sales = new ArrayList<>();
 
     @Column(length = 100)

@@ -20,12 +20,15 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
 
     List<PurchaseOrder> findByStatus(OrderStatus status);
 
-    List<PurchaseOrder> findBySupplierId(Long supplierId);
+    List<PurchaseOrder> findBySupplier_Id(Long supplierId);
 
     @Query("SELECT po FROM PurchaseOrder po WHERE po.orderDate BETWEEN :startDate AND :endDate " +
             "AND po.deleted = false ORDER BY po.orderDate DESC")
     List<PurchaseOrder> findByOrderDateBetween(@Param("startDate") LocalDate startDate,
                                                @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT po FROM PurchaseOrder po WHERE po.deleted = false ORDER BY po.createdAt DESC")
+    List<PurchaseOrder> findAllActive();
 
     @Query("SELECT po FROM PurchaseOrder po WHERE po.expectedDeliveryDate <= :date " +
             "AND po.status NOT IN ('RECEIVED', 'CANCELLED') AND po.deleted = false")

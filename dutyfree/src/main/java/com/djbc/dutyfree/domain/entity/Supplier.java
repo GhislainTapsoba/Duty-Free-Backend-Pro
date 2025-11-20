@@ -1,5 +1,6 @@
 package com.djbc.dutyfree.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;  // ← AJOUTEZ
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -40,13 +41,22 @@ public class Supplier extends BaseEntity {
     private String country;
 
     @Column(length = 50)
+    private String postalCode;
+
+    @Column(length = 50)
     private String taxId;
+
+    @Column(length = 200)
+    private String paymentTerms;
+
+    private java.math.BigDecimal creditLimit;
 
     @Column(length = 1000)
     private String notes;
 
     private Boolean active = true;
 
+    @JsonIgnore  // ← AJOUTEZ CETTE LIGNE
     @OneToMany(mappedBy = "supplier", cascade = CascadeType.ALL)
     private List<PurchaseOrder> purchaseOrders = new ArrayList<>();
 }

@@ -7,7 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDate;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,27 +17,13 @@ public interface SommierRepository extends JpaRepository<Sommier, Long> {
 
     Optional<Sommier> findBySommierNumber(String sommierNumber);
 
-    Boolean existsBySommierNumber(String sommierNumber);
-
     List<Sommier> findByStatus(SommierStatus status);
 
-    List<Sommier> findByPurchaseOrderId(Long purchaseOrderId);
+    Long countByStatus(SommierStatus status);
 
-    @Query("SELECT s FROM Sommier s WHERE s.status = :status AND s.deleted = false")
-    List<Sommier> findActiveSommiersByStatus(@Param("status") SommierStatus status);
+    List<Sommier> findByStatusAndCurrentValueGreaterThan(SommierStatus status, BigDecimal value);
 
-    @Query("SELECT s FROM Sommier s WHERE s.alertDate <= :date " +
-            "AND s.alertSent = false AND s.status = 'ACTIVE' AND s.deleted = false")
-    List<Sommier> findSommiersNeedingAlert(@Param("date") LocalDate date);
-
-    @Query("SELECT s FROM Sommier s WHERE s.openingDate BETWEEN :startDate AND :endDate " +
-            "AND s.deleted = false")
-    List<Sommier> findByOpeningDateBetween(@Param("startDate") LocalDate startDate,
-                                           @Param("endDate") LocalDate endDate);
-
-    @Query("SELECT s FROM Sommier s LEFT JOIN FETCH s.stocks WHERE s.id = :id")
-    Optional<Sommier> findByIdWithStocks(@Param("id") Long id);
-
-    @Query("SELECT COUNT(s) FROM Sommier s WHERE s.status = 'ACTIVE' AND s.deleted = false")
-    Long countActiveSommiers();
+    @Query("SELECT s FROM Sommier s WHERE s.openingDate BETWEEN CAST(:startDate AS LocalDate) AND CAST(:endDate AS LocalDate) ORDER BY s.openingDate DESC")
+    List<Sommier> findByDeclarationDateBetween(@Param("startDate") LocalDateTime startDate,
+                                               @Param("endDate") LocalDateTime endDate);
 }

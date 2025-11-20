@@ -57,4 +57,11 @@ public class PaymentController {
         Payment payment = paymentService.verifyPayment(paymentId);
         return ResponseEntity.ok(ApiResponse.success("Payment verified successfully", payment));
     }
+
+    @GetMapping
+    @Operation(summary = "Get all payments", description = "Return all payments")
+    public ResponseEntity<ApiResponse<List<Payment>>> getAllPayments() {
+        List<Payment> payments = paymentService.getAllPayments();
+        return ResponseEntity.ok(ApiResponse.success(payments));
+    }
 }

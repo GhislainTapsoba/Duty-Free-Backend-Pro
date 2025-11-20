@@ -30,26 +30,26 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
   # ========================================
-  # DATABASE (PostgreSQL)
+  # DATABASE (PostgreSQL pour Docker, H2 pour dev local)
   # ========================================
   datasource:
-    url: jdbc:postgresql://dutyfree-postgres-1:5432/dutyfree_db
-    username: postgres
-    password: postgres
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-      connection-timeout: 20000  # 20 secondes
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:dutyfree_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
 
   # ========================================
   # JPA / HIBERNATE
   # ========================================
   jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.H2Dialect}
     open-in-view: false  # Désactive le OpenSessionInView pour éviter les problèmes LazyInitialization
     hibernate:
-      ddl-auto: none  # Pas de modification automatique de la base en dev
+      ddl-auto: update  # Met à jour automatiquement le schéma
       naming:
         physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
         implicit-strategy: org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy
@@ -59,6 +59,7 @@ spring:
         use_sql_comments: true
         show_sql: true
         globally_quoted_identifiers: true
+        enable_lazy_load_no_trans: true
         jdbc:
           batch_size: 20
         order_updates: true
@@ -73,6 +74,17 @@ spring:
     baseline-on-migrate: true
     locations: classpath:db/migration
     validate-on-migrate: true
+
+  # ========================================
+  # JACKSON (JSON Serialization)
+  # ========================================
+  jackson:
+    serialization:
+      fail-on-empty-beans: false
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+    mapper:
+      accept-case-insensitive-properties: true
 
   # ========================================
   # FILE UPLOAD
@@ -94,6 +106,7 @@ jwt:
 # ========================================
 logging:
   level:
+    root: ERROR
     com.djbc.dutyfree: DEBUG               # Logs détaillés pour ton application
     org.springframework.security: DEBUG     # Logs sécurité
     org.hibernate.SQL: DEBUG                # Affiche les requêtes SQL
@@ -108,3 +121,21 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
   packages-to-scan: com.djbc.dutyfree.controller
+
+# ========================================
+# SERVER
+# ========================================
+server:
+  port: 8080
+
+# ========================================
+# ACTUATOR
+# ========================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always

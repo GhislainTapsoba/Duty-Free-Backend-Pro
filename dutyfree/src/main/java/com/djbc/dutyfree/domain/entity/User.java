@@ -1,6 +1,7 @@
 package com.djbc.dutyfree.domain.entity;
 
 import com.djbc.dutyfree.domain.enums.Role;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
@@ -46,7 +47,12 @@ public class User extends BaseEntity implements UserDetails {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cash_register_id")
+    @JsonIgnore
     private CashRegister assignedCashRegister;
+
+    // Direct access to avoid lazy loading issues
+    @Column(name = "cash_register_id", insertable = false, updatable = false)
+    private Long cashRegisterId;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

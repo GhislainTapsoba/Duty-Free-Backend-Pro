@@ -15,7 +15,9 @@ import java.util.List;
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
-    List<Payment> findBySaleId(Long saleId);
+    // ✅ CORRIGÉ : Utilisation de JPQL car Payment a un champ "sale" pas "saleId"
+    @Query("SELECT p FROM Payment p WHERE p.sale.id = :saleId")
+    List<Payment> findBySaleId(@Param("saleId") Long saleId);
 
     List<Payment> findByPaymentMethod(PaymentMethod paymentMethod);
 

@@ -1,8 +1,5 @@
 package com.djbc.dutyfree.security;
 
-import com.djbc.dutyfree.domain.entity.User;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -10,62 +7,52 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.Collections;
 
-@Data
-@AllArgsConstructor
 public class CustomUserDetails implements UserDetails {
-
-    private Long id;
-    private String username;
-    private String password;
-    private String fullName;
-    private Collection<? extends GrantedAuthority> authorities;
-    private boolean enabled;
-
-    public static CustomUserDetails build(User user) {
-        GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
-
-        return new CustomUserDetails(
-                user.getId(),
-                user.getUsername(),
-                user.getPassword(),
-                user.getFullName(),
-                Collections.singletonList(authority),
-                user.getActive()
-        );
+    
+    private final String username;
+    private final String password;
+    private final String role;
+    private final boolean active;
+    
+    public CustomUserDetails(String username, String password, String role, boolean active) {
+        this.username = username;
+        this.password = password;
+        this.role = role;
+        this.active = active;
     }
-
+    
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return authorities;
+        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
     }
-
+    
     @Override
     public String getPassword() {
         return password;
     }
-
+    
     @Override
     public String getUsername() {
         return username;
     }
-
+    
     @Override
     public boolean isAccountNonExpired() {
         return true;
     }
-
+    
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return active;
     }
-
+    
     @Override
     public boolean isCredentialsNonExpired() {
         return true;
     }
-
+    
     @Override
     public boolean isEnabled() {
-        return enabled;
+        return active;
     }
 }

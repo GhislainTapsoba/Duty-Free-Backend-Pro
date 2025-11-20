@@ -26,6 +26,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     List<Product> findByCategoryId(Long categoryId);
 
+    List<Product> findByCategoryName(String categoryName);
+
     List<Product> findBySupplierId(Long supplierId);
 
     @Query("SELECT p FROM Product p WHERE p.deleted = false AND p.active = true")
