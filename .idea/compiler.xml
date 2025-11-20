@@ -11,11 +11,13 @@
           <entry name="$MAVEN_REPOSITORY$/org/mapstruct/mapstruct-processor/1.5.5.Final/mapstruct-processor-1.5.5.Final.jar" />
         </processorPath>
         <module name="dutyfree" />
+        <module name="duty-free-backend" />
       </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="duty-free-backend" options="-parameters" />
       <module name="dutyfree" options="-parameters" />
     </option>
   </component>
